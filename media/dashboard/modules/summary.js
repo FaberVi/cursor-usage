@@ -8,6 +8,7 @@ import {
   renderOnDemandProgress,
 } from "./summary-ondemand.js";
 import { renderPoolUsageCard } from "./summary-pool.js";
+import { renderGrokBotUsageCard } from "./summary-grok-bot.js";
 
 export function renderSummaryCards() {
   renderPlanBanner();
@@ -69,6 +70,11 @@ export function renderSummaryCards() {
     ));
   }
 
+  if (refs.state.data.grokBotUsage) {
+    parts.push(renderGrokBotUsageCard(refs.state.data.grokBotUsage));
+  }
+
   ui.summaryCards.innerHTML = parts.join("");
   ui.summaryCards.classList.toggle("has-pool-card", Boolean(refs.state.data.poolUsage));
+  ui.summaryCards.classList.toggle("has-grok-bot-card", Boolean(refs.state.data.grokBotUsage));
 }

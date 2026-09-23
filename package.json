@@ -2,7 +2,7 @@
   "name": "cursor-usage",
   "displayName": "Cursor Usage (Community)",
   "description": "Shows your Cursor IDE usage (included requests and on-demand spend) in the status bar",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "publisher": "fabervi",
   "license": "MIT",
   "private": true,
@@ -11,7 +11,7 @@
     "url": "https://github.com/FaberVi/cursor-usage"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.128.0"
   },
   "categories": [
     "Other"
@@ -146,14 +146,14 @@
     "test": "bun test --isolate"
   },
   "dependencies": {
-    "sql.js": "^1.14.1"
+    "sql.js": "^1.14.2"
   },
   "devDependencies": {
-    "@types/node": "^25.3.0",
-    "@types/vscode": "^1.85.0",
-    "esbuild": "^0.25.0",
-    "playwright": "^1.52.0",
-    "puppeteer": "^25.3.0",
-    "typescript": "^5.7.0"
+    "@types/node": "^26.6.2",
+    "@types/vscode": "^1.128.0",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.63.0",
+    "puppeteer": "^25.12.0",
+    "typescript": "^7.0.2"
   }
 }

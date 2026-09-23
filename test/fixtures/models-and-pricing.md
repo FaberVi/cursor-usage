@@ -2,10 +2,11 @@
 
 ## Cursor Models
 
-The Cursor Models pool includes Cursor Grok 4.6, Grok 4.5, and Composer 2.5.
+The Cursor Models pool includes Cursor Grok 4.7, Grok 4.6, Grok 4.5, and Composer 2.5.
 
 | Model | Provider | Input | Cache write | Cache read | Output | Notes |
 | ----------------------------------------------------------- | -------- | ----- | ----------- | ---------- | ------ | ------------------------------------------------------------------------------------------------- |
+| Grok 4.7 | Cursor | $2 | - | $0.5 | $6 | Jointly trained by Cursor and SpaceXAI |
 | Grok 4.6 | Cursor | $2 | - | $0.5 | $6 | Jointly trained by Cursor and SpaceXAI |
 | Grok 4.6 (Fast) | Cursor | $4 | - | $1 | $12 | Jointly trained by Cursor and SpaceXAI |
 | Grok 4.5 | Cursor | $2 | - | $0.5 | $6 | Jointly trained by Cursor and SpaceXAI |

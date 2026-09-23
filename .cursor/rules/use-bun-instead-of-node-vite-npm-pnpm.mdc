@@ -1,111 +1,34 @@
 ---
-description: Use Bun instead of Node.js, npm, pnpm, or vite.
-globs: "*.ts, *.tsx, *.html, *.css, *.js, *.jsx, package.json"
-alwaysApply: false
+description: Use Bun for installs, tests, and npm scripts in this VS Code extension repo (keep esbuild for extension builds).
+alwaysApply: true
 ---
 
-Default to using Bun instead of Node.js.
+# Toolchain: Bun (cursor-usage)
 
-- Use `bun <file>` instead of `node <file>` or `ts-node <file>`
-- Use `bun test` instead of `jest` or `vitest`
-- Use `bun build <file.html|file.ts|file.css>` instead of `webpack` or `esbuild`
-- Use `bun install` instead of `npm install` or `yarn install` or `pnpm install`
-- Use `bun run <script>` instead of `npm run <script>` or `yarn run <script>` or `pnpm run <script>`
-- Use `bunx <package> <command>` instead of `npx <package> <command>`
-- Bun automatically loads .env, so don't use dotenv.
+This repository is a **VS Code / Cursor extension**, not a Bun web app. Use Bun as the package manager and script runner. Do not replace the existing bundler or introduce a Vite/React server.
 
-## APIs
+## Commands
 
-- `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.
-- `bun:sqlite` for SQLite. Don't use `better-sqlite3`.
-- `Bun.redis` for Redis. Don't use `ioredis`.
-- `Bun.sql` for Postgres. Don't use `pg` or `postgres.js`.
-- `WebSocket` is built-in. Don't use `ws`.
-- Prefer `Bun.file` over `node:fs`'s readFile/writeFile
-- Bun.$`ls` instead of execa.
+- Install and lockfile: `bun install` (CI: `bun install --frozen-lockfile`). Do not use `npm install`, `yarn`, or `pnpm` to change dependencies.
+- Scripts: `bun run <script>` (`build`, `watch`, `package`, `screenshots`, `test`).
+- Tests: `bun test --isolate` (same as `bun run test`). Do not drop `--isolate`; shared mocks break without it. Do not add Jest or Vitest.
+- One-off CLIs: `bun x <pkg>` (Windows-safe). Prefer this over bare `bunx` in scripts that must run on Windows PowerShell.
+- Run a local script: `bun <file>` instead of `node <file>` or `ts-node`.
 
-## Testing
+## Builds (do not switch bundlers)
 
-Use `bun test` to run tests.
+- Production and watch builds go through **esbuild** via `bun esbuild.config.mjs` (`bun run build` / `bun run watch`).
+- Do not replace that with `bun build`, Vite, webpack, or Rolldown.
+- After editing `media/dashboard/modules/**`, run `bun run build` (or `bun esbuild.config.mjs --production`) so committed `media/dashboard/dashboard.js` matches sources. CI fails on `git diff --exit-code -- media/dashboard/dashboard.js`.
 
-```ts#index.test.ts
-import { test, expect } from "bun:test";
+## Runtime constraints
 
-test("hello world", () => {
-  expect(1).toBe(1);
-});
-```
+- Extension host code targets **Node** (esbuild `platform: "node"`, `target: "node18"`) inside Cursor/VS Code. Do not add `Bun.serve()`, `bun:sqlite` for the extension, Redis/Postgres clients, or a React frontend.
+- SQLite in product code uses **sql.js** (WASM), packaged in the VSIX. Conversation/auth reads use the btree reader, not a native `sqlite3` binary.
+- Dashboard UI is static webview JS/CSS under `media/dashboard/`, bundled by esbuild. No Vite, no Tailwind setup in this repo.
+- `package-lock.json` may exist for npm consumers; dependency changes should still be made with Bun so `bun.lock` stays the source of truth for CI.
 
-## Frontend
+## Shell
 
-Use HTML imports with `Bun.serve()`. Don't use `vite`. HTML imports fully support React, CSS, Tailwind.
-
-Server:
-
-```ts#index.ts
-import index from "./index.html"
-
-Bun.serve({
-  routes: {
-    "/": index,
-    "/api/users/:id": {
-      GET: (req) => {
-        return new Response(JSON.stringify({ id: req.params.id }));
-      },
-    },
-  },
-  // optional websocket support
-  websocket: {
-    open: (ws) => {
-      ws.send("Hello, world!");
-    },
-    message: (ws, message) => {
-      ws.send(message);
-    },
-    close: (ws) => {
-      // handle close
-    }
-  },
-  development: {
-    hmr: true,
-    console: true,
-  }
-})
-```
-
-HTML files can import .tsx, .jsx or .js files directly and Bun's bundler will transpile & bundle automatically. `<link>` tags can point to stylesheets and Bun's CSS bundler will bundle.
-
-```html#index.html
-<html>
-  <body>
-    <h1>Hello, world!</h1>
-    <script type="module" src="./frontend.tsx"></script>
-  </body>
-</html>
-```
-
-With the following `frontend.tsx`:
-
-```tsx#frontend.tsx
-import React from "react";
-import { createRoot } from "react-dom/client";
-
-// import .css files directly and it works
-import './index.css';
-
-const root = createRoot(document.body);
-
-export default function Frontend() {
-  return <h1>Hello, world!</h1>;
-}
-
-root.render(<Frontend />);
-```
-
-Then, run index.ts
-
-```sh
-bun --hot ./index.ts
-```
-
-For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+- On Windows use PowerShell. Do not chain commands with `&&` (unreliable on Windows PowerShell 5.x). Prefer separate commands or `cmd /c "..."`.
+- Bun loads `.env` automatically; do not add `dotenv` unless a script already depends on it.

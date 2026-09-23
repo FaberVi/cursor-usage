@@ -57,8 +57,22 @@ export function formatPoolDayLabel(dayMs: number): string {
   });
 }
 
-/** Included spend for Cursor first-party models (Auto, Composer 2.5, Cursor Grok 4.5). */
+/** Grok Bot rows bill to the separate weekly allowance, not monthly Cursor Models / API pools. */
+export function isGrokBotUsageModel(modelId: string): boolean {
+  const normalized = modelId.trim().toLowerCase();
+  if (normalized.startsWith("grok-bot")) return true;
+  const entry = resolveModelPricing(modelId);
+  return entry?.pool === "grokBot";
+}
+
+/** Whether an included event should affect monthly first-party / API pool pacing in the dashboard. */
+export function countsTowardCursorMonthlyPools(event: UsageEvent): boolean {
+  return !isGrokBotUsageModel(event.model);
+}
+
+/** Included spend for Cursor first-party models (Auto, Composer 2.5, Cursor Grok). */
 export function isAutoPoolEvent(event: UsageEvent): boolean {
+  if (isGrokBotUsageModel(event.model)) return false;
   const entry = resolveModelPricing(event.model);
   if (entry) return entry.pool === "firstParty";
   // Legacy / unknown ids that still map to the Auto routing pool.
@@ -128,6 +142,7 @@ export function buildPoolUsageSeries(
 
   for (const event of events) {
     if (event.timestamp < cycleStart) continue;
+    if (!countsTowardCursorMonthlyPools(event)) continue;
     const cost = poolIncludedCostCents(event);
     if (cost <= 0) continue;
     const day = startOfUtcDay(event.timestamp);

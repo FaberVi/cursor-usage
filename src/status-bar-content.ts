@@ -135,7 +135,7 @@ export function updateStatusBar(data: UsagePayload, ctx: StatusBarContext): void
   const barW = 150;
   let md = `### $(pulse) ${t(locale, "title")}\n\n`;
   md += buildUsageOverviewMarkdown(
-    { includedRequests, onDemand, poolUsage: data.poolUsage, resetsAt: data.resetsAt },
+    { includedRequests, onDemand, poolUsage: data.poolUsage, grokBotUsage: data.grokBotUsage, resetsAt: data.resetsAt },
     {
       markdown: (ratio) => progressBarMarkdown(ratio, barW),
       html: (ratio) => progressBarHtml(ratio, barW),

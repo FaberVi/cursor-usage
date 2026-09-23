@@ -65,6 +65,7 @@ export type DashboardState = {
   storedEventCount: number;
   warnings: string[];
   eventsComplete: boolean;
+  eventHistorySyncInProgress: boolean;
 };
 
 const DAY_MS = 86_400_000;
@@ -101,6 +102,7 @@ export function buildDashboardState(
   poolEvents?: UsageEvent[],
   warnings: string[] = [],
   eventsComplete = true,
+  eventHistorySyncInProgress = false,
 ): DashboardState {
   const poolUsage = data?.poolUsage ?? null;
   const resetsAt = data?.resetsAt ?? null;
@@ -110,10 +112,11 @@ export function buildDashboardState(
     poolUsage,
   );
   const catalog = getModelPricingCatalog();
+  const tier = data?.planInfo?.tier;
   const isTeamPlan =
-    data?.planInfo?.tier === "Teams" ||
-    data?.planInfo?.tier === "Enterprise" ||
-    data?.planInfo?.tier.startsWith("Teams ·") === true;
+    tier === "Teams" ||
+    tier === "Enterprise" ||
+    tier?.startsWith("Teams ·") === true;
   const pricingAggregate = aggregateTheoreticalByModel(
     events,
     "billingCycle",
@@ -151,6 +154,7 @@ export function buildDashboardState(
     storedEventCount,
     warnings,
     eventsComplete,
+    eventHistorySyncInProgress,
   };
 }
 

@@ -32,6 +32,7 @@ const sampleData: UsagePayload = {
   includedRequests: { used: 100, limit: 500 },
   onDemand: { state: "limited", onDemandEnabled: true, spendDollars: 12.5, limitDollars: 100 },
   poolUsage: null,
+  grokBotUsage: null,
   planInfo: null,
   resetsAt: null,
 };

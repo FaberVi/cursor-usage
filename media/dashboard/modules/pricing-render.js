@@ -198,7 +198,7 @@ function renderModelRow(entry, usageMap, used) {
         "</span>" +
       "</td>" +
       '<td>' + escapeHtml(entry.provider) + "</td>" +
-      '<td><span class="pricing-pool-badge pricing-pool-' + (entry.pool === "firstParty" || entry.pool === "api" ? entry.pool : "unknown") + '">' + escapeHtml(poolLabel(entry.pool)) + "</span></td>" +
+      '<td><span class="pricing-pool-badge pricing-pool-' + (entry.pool === "firstParty" || entry.pool === "api" || entry.pool === "grokBot" ? entry.pool : "unknown") + '">' + escapeHtml(poolLabel(entry.pool)) + "</span></td>" +
       '<td class="num">' + inputCell + "</td>" +
       '<td class="num">' + formatRateCell(rates.cacheWrite) + "</td>" +
       '<td class="num">' + formatRateCell(rates.cacheRead) + "</td>" +

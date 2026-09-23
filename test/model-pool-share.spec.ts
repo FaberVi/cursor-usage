@@ -55,6 +55,18 @@ describe("buildPoolSpendIndex", () => {
     expect(index.modelByDay.get("claude-4.6-sonnet")?.api[1]).toBe(50);
     expect(index.modelByDay.has("gpt-5.3-codex")).toBe(false);
   });
+
+  it("does not count Grok Bot included spend toward monthly pool indices", () => {
+    const events: UsageEvent[] = [
+      event({ timestamp: day0 + 1000, model: "default", spendCents: 100 }),
+      event({ timestamp: day0 + 2000, model: "grok-bot-default", spendCents: 800 }),
+      event({ timestamp: day0 + 3000, model: "grok-bot-cua", spendCents: 400 }),
+    ];
+    const index = buildPoolSpendIndex(events, dayMs, day0);
+    expect(index.autoByDay[0]).toBe(100);
+    expect(index.apiByDay[0]).toBe(0);
+    expect(index.modelByDay.has("grok-bot-default")).toBe(false);
+  });
 });
 
 describe("computeModelPoolMetricsForDay", () => {

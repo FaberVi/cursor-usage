@@ -3,6 +3,7 @@
   refresh: "Aggiorna",
   refreshing: "Aggiornamento\u2026",
   updated: "Aggiornato",
+  eventHistorySyncing: "Sync storico attivit\u00e0\u2026",
   language: "Lingua",
   currency: "Valuta",
   perPage: "{size}/pagina",
@@ -92,6 +93,10 @@
   includedPool: "Pool incluso",
   poolFirstParty: "Modelli first-party",
   poolApi: "API",
+  grokBotWeekly: "Grok Bot (settimanale)",
+  grokBotWeeklyUsed: "quota settimanale consumata",
+  grokBotWeeklyDesc: "Separato dai pool mensili Cursor Models / API. Oltre il 100% vale l'on-demand condiviso se attivo.",
+  grokBotWeeklyResetUnknown: "Reset settimanale (orario da Cursor quando disponibile)",
   billingCycle: "Ciclo di fatturazione",
   billingCycleUntilReset: "al reset",
   cycleElapsed: "del ciclo trascorso",
@@ -146,6 +151,8 @@
   helpBillingCycle:
     "Giorni rimanenti nel ciclo di fatturazione corrente e quota del ciclo gi\u00e0 trascorsa. I pool inclusi e i limiti on-demand si azzerano alla data indicata.",
   recommendedPace: "Obiettivo cumulativo",
+  poolIncludedIntro:
+    "Quota consumata nel ciclo per Modelli first-party e API (senza obiettivo cumulativo se manca la data di reset).",
   recommendedPaceDesc:
     "Distribuzione uniforme fino al reset: dove dovresti essere oggi (cresce ogni giorno). Barra = utilizzo reale; segno = obiettivo.",
   recTarget: "obiettivo",
@@ -168,7 +175,9 @@
     "Questi modelli sono stati aggiunti dal sync runtime e non sono ancora inclusi nell'estensione. Alias API e varianti potrebbero mancare. L'avviso scompare dopo un aggiornamento del plugin.",
   pricingPoolFirstParty: "Modelli first-party",
   pricingPoolApi: "API",
-  pricingPoolFirstPartyDesc: "Auto, Composer 2.5, Cursor Grok 4.5 \u2014 utilizzo incluso generoso",
+  pricingPoolGrokBot: "Grok Bot (settimanale)",
+  pricingPoolFirstPartyDesc: "Auto, Composer 2.5, Cursor Grok — utilizzo incluso generoso",
+  pricingPoolGrokBotDesc: "Quota settimanale separata; non scala i pool mensili Cursor Models / API",
   pricingPoolApiDesc: "Modelli specifici fatturati alle tariffe API da quota inclusa o on-demand",
   pricingSearchPlaceholder: "Cerca modelli\u2026",
   pricingFilterProvider: "Fornitore",

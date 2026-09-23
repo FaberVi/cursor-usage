@@ -42,7 +42,7 @@ describe("pricing catalog sync parser", () => {
 
   it("parses Cursor Models base rows and skips Fast variants", () => {
     const rows = parseCursorModelsTable(fixtureMarkdown);
-    expect(rows.map((row) => row.displayName)).toEqual(["Grok 4.6", "Grok 4.5", "Composer 2.5"]);
+    expect(rows.map((row) => row.displayName)).toEqual(["Grok 4.7", "Grok 4.6", "Grok 4.5", "Composer 2.5"]);
     expect(rows[0]?.rates.input).toBe(2);
     expect(rows[0]?.rates.output).toBe(6);
   });

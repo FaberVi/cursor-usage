@@ -6,7 +6,7 @@ export type TokenRatesPerMillion = {
   inputPlusCacheWrite?: number;
 };
 
-export type ModelPool = "firstParty" | "api";
+export type ModelPool = "firstParty" | "api" | "grokBot";
 
 export type VariantPriceImpact =
   | "sameRateMoreTokens"

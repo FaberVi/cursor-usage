@@ -276,6 +276,16 @@ tr.event-row-selected { outline: 1px solid var(--border-strong); outline-offset:
   border-bottom: none;
 }
 .chart-tooltip .t-table tbody tr:last-child td { padding-bottom: 0; }
+.chart-tooltip .t-table tbody tr.t-total-row td {
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--fg);
+}
+.chart-tooltip .t-table tbody tr.t-total-row td.muted {
+  font-weight: 500;
+  color: var(--muted);
+}
 .chart-tooltip .t-subtitle {
   margin-top: 8px;
   padding-top: 6px;

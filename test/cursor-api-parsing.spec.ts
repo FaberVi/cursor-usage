@@ -351,6 +351,7 @@ describe("enrichUsageFromEvents", () => {
     includedRequests: { used: 0, limit: 0 },
     onDemand: { state: "unlimited", onDemandEnabled: true, spendDollars: 0, limitDollars: null },
     poolUsage: null,
+    grokBotUsage: null,
     resetsAt: "2026-08-02T15:37:46.000Z",
     planInfo: null,
   };

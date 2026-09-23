@@ -1,8 +1,8 @@
 import type { PlanInfo } from "./plan-labels";
 import type { OnDemandBreakdown, OnDemandUsage } from "./on-demand";
+import type { GrokBotUsage } from "./grok-bot-usage";
 
-export type { PlanInfo };
-export type { OnDemandBreakdown, OnDemandUsage };
+export type { PlanInfo, GrokBotUsage, OnDemandBreakdown, OnDemandUsage };
 
 export type UsagePayload = {
   includedRequests: { used: number; limit: number };
@@ -12,6 +12,8 @@ export type UsagePayload = {
     apiPercentUsed: number;
     totalPercentUsed: number;
   } | null;
+  /** Weekly Grok Bot included allowance from get-sand-usage-status (separate from monthly pools). */
+  grokBotUsage: GrokBotUsage | null;
   resetsAt: string | null;
   planInfo: PlanInfo | null;
 };

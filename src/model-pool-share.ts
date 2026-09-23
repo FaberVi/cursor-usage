@@ -1,5 +1,5 @@
 import type { UsageEvent } from "./cursor-api-types";
-import { isAutoPoolEvent, poolIncludedCostCents } from "./pool-usage-series";
+import { countsTowardCursorMonthlyPools, isAutoPoolEvent, poolIncludedCostCents } from "./pool-usage-series";
 import { startOfUtcDay } from "./utc-day";
 
 export type ModelPoolKind = "firstParty" | "api";
@@ -49,6 +49,7 @@ export function buildPoolSpendIndex(
 
   for (const event of events) {
     if (event.timestamp < cycleStart) continue;
+    if (!countsTowardCursorMonthlyPools(event)) continue;
     const cost = poolIncludedCostCents(event);
     if (cost <= 0) continue;
     const day = startOfUtcDay(event.timestamp);

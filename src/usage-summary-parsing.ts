@@ -114,6 +114,7 @@ export function extractUsageFromSummary(
     },
     onDemand,
     poolUsage: extractPoolUsageFromPlan(plan),
+    grokBotUsage: null,
     resetsAt,
     planInfo: null,
   };

@@ -14,13 +14,13 @@ execSync("bun run build", { cwd: root, stdio: "inherit" });
 
 if (variant === "vsm") {
   execSync("bun scripts/prepare-vsm-package.mjs", { cwd: root, stdio: "inherit" });
-  execSync(`bunx @vscode/vsce package --out "../cursor-usage-auto-${version}.vsix"`, {
+  execSync(`bun x @vscode/vsce package --out "../cursor-usage-auto-${version}.vsix"`, {
     cwd: path.join(root, "build", "vsm-package"),
     stdio: "inherit",
   });
   console.log(`Packaged: build/cursor-usage-auto-${version}.vsix`);
 } else {
-  execSync(`bunx @vscode/vsce package --out "build/cursor-usage-${version}.vsix"`, {
+  execSync(`bun x @vscode/vsce package --out "build/cursor-usage-${version}.vsix"`, {
     cwd: root,
     stdio: "inherit",
   });

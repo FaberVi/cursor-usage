@@ -27,6 +27,7 @@ import {
   resolveOnDemandFromUsageSummary,
   type OnDemandUsage,
 } from "./on-demand";
+import { fetchGrokBotWeeklyUsage } from "./grok-bot-usage";
 
 async function fetchUsageSummary(headers: CursorHeaders): Promise<Record<string, unknown> | null> {
   const res = await fetch("https://cursor.com/api/usage-summary", withTimeout({ headers }));
@@ -213,6 +214,7 @@ async function fetchTeamUsage(
     },
     onDemand,
     poolUsage: extractPoolUsageFromSummary(usageSummary),
+    grokBotUsage: null,
     resetsAt: billingCycleEndIso(periodUsage) ?? resetsAt,
     planInfo: null,
   };
@@ -262,12 +264,22 @@ async function fetchSoloUsage(
     },
     onDemand,
     poolUsage: null,
+    grokBotUsage: null,
     resetsAt: billingCycleEndIso(periodUsage) ?? resetsAt,
     planInfo: null,
   };
 
   apiLog(`Result: ${result.includedRequests.used}/${result.includedRequests.limit} reqs`);
   return result;
+}
+
+async function finalizeUsagePayload(
+  payload: UsagePayload,
+  headers: CursorHeaders,
+  setup: SetupCache,
+): Promise<UsagePayload> {
+  const grokBotUsage = await fetchGrokBotWeeklyUsage(headers);
+  return withPlanInfo({ ...payload, grokBotUsage }, setup);
 }
 
 export async function fetchUsageData(): Promise<UsagePayload | null> {
@@ -288,7 +300,7 @@ export async function fetchUsageData(): Promise<UsagePayload | null> {
 
   if (setup.isTeamMember) {
     const payload = await fetchTeamUsage(auth, headers, setup);
-    return payload ? withPlanInfo(payload, setup) : null;
+    return payload ? finalizeUsagePayload(payload, headers, setup) : null;
   }
 
   const summary = await fetchUsageSummary(headers);
@@ -298,11 +310,12 @@ export async function fetchUsageData(): Promise<UsagePayload | null> {
       apiLog(
         `Using usage-summary: ${fromSummary.includedRequests.used}/${fromSummary.includedRequests.limit} reqs`,
       );
-      return withPlanInfo(await enrichPayloadOnDemand(auth, setup, fromSummary, summary), setup);
+      const enriched = await enrichPayloadOnDemand(auth, setup, fromSummary, summary);
+      return finalizeUsagePayload(enriched, headers, setup);
     }
     apiLog("usage-summary returned no usable plan limits; falling back to legacy endpoints");
   }
 
   const payload = await fetchSoloUsage(auth, headers, setup);
-  return payload ? withPlanInfo(payload, setup) : null;
+  return payload ? finalizeUsagePayload(payload, headers, setup) : null;
 }

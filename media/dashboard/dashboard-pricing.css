@@ -153,6 +153,10 @@
   background: rgba(182, 227, 193, 0.12);
 }
 
+.pricing-pool-grokBot {
+  background: rgba(230, 190, 140, 0.14);
+}
+
 .pricing-row-used {
   box-shadow: inset 3px 0 0 var(--accent);
 }

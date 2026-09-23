@@ -52,7 +52,6 @@ function renderDepletionLine(label, projection, resetAtIso) {
 function renderTodayPaceRow(label, pace) {
   if (!pace) return "";
   const { allowance, used, residual } = pace;
-  // Normalize to today's allowance so the bar is readable (matches tooltip markdown).
   const usedRatio = allowance > 0 ? used / allowance : 0;
   const usedWidth = Math.min(Math.max(usedRatio, 0), 1) * 100;
   const allowanceWidth = 100;
@@ -97,15 +96,21 @@ function renderTodayPaceRow(label, pace) {
   );
 }
 
+function poolSectionHead(helpKey, titleKey) {
+  return (
+    '<div class="pool-section-head">' +
+      "<span>" + escapeHtml(t(titleKey)) + "</span>" +
+      cardHelpButton(helpKey) +
+    "</div>"
+  );
+}
+
 function renderTodayPace(poolSeries) {
   if (!poolSeries?.todayAutoPace && !poolSeries?.todayApiPace) return "";
   const resetCountdown = formatDailyBudgetResetCountdown(local.locale);
   return (
     '<div class="pool-pace">' +
-      '<div class="pool-projection-title">' +
-        cardHelpButton("poolPace") +
-        "<span>" + escapeHtml(t("todayPace")) + "</span>" +
-      "</div>" +
+      poolSectionHead("poolPace", "todayPace") +
       '<p class="muted small pool-pace-reset" id="daily-budget-reset-countdown">' + escapeHtml(resetCountdown) + "</p>" +
       renderTodayPaceRow(t("poolFirstParty"), poolSeries.todayAutoPace) +
       renderTodayPaceRow(t("poolApi"), poolSeries.todayApiPace) +
@@ -113,44 +118,56 @@ function renderTodayPace(poolSeries) {
   );
 }
 
-function renderRecommendedPace(poolUsage, poolRecommended) {
-  if (!poolRecommended) return "";
-  const autoRec = Math.min(Math.max(poolRecommended.autoRecommended, 0), 100);
-  const apiRec = Math.min(Math.max(poolRecommended.apiRecommended, 0), 100);
+function renderIncludedPoolUsage(poolUsage, poolRecommended) {
   const autoUsed = Math.min(Math.max(poolUsage.autoPercentUsed, 0), 100);
   const apiUsed = Math.min(Math.max(poolUsage.apiPercentUsed, 0), 100);
+  const autoRec = poolRecommended
+    ? Math.min(Math.max(poolRecommended.autoRecommended, 0), 100)
+    : null;
+  const apiRec = poolRecommended
+    ? Math.min(Math.max(poolRecommended.apiRecommended, 0), 100)
+    : null;
 
-  function row(label, recPct, usedPct) {
-    const usedWidth = usedPct;
-    const targetWidth = recPct;
+  function usageRow(label, usedPct, recPct) {
+    const marker =
+      recPct != null
+        ? '<div class="pool-pace-marker pool-recommended-marker" style="left:' + recPct + '%"></div>'
+        : "";
+    const pctLabel =
+      recPct != null
+        ? formatPercent(usedPct) + '% <span class="pool-target-pct muted">/ ' +
+          formatPercent(recPct) + "% " + escapeHtml(t("recTarget")) + "</span>"
+        : formatPercent(usedPct) + "%";
+    const barTitle =
+      recPct != null
+        ? escapeHtml(t("usedLabel")) + " " + formatPercent(usedPct) + "%, " +
+          escapeHtml(t("recTarget")) + " " + formatPercent(recPct) + "%"
+        : escapeHtml(t("usedLabel")) + " " + formatPercent(usedPct) + "%";
+
     return (
-      '<div class="pool-pace-row pool-recommended-row">' +
+      '<div class="pool-pace-row pool-included-row">' +
         '<span class="pool-pace-label">' + escapeHtml(label) + "</span>" +
-        '<div class="pool-pace-bar" title="' +
-          escapeHtml(t("usedLabel")) + " " + formatPercent(usedPct) + "%, " +
-          escapeHtml(t("recTarget")) + " " + formatPercent(recPct) + '%">' +
+        '<div class="pool-pace-bar" title="' + barTitle + '">' +
           '<div class="pool-pace-track">' +
-            '<div class="pool-pace-used" style="width:' + usedWidth + '%"></div>' +
-            '<div class="pool-pace-marker pool-recommended-marker" style="left:' + targetWidth + '%"></div>' +
+            '<div class="pool-pace-used" style="width:' + usedPct + '%"></div>' +
+            marker +
           "</div>" +
         "</div>" +
-        '<span class="pool-pct">' +
-          formatPercent(usedPct) + '% ' +
-          '<span class="pool-target-pct muted">/ ' + formatPercent(recPct) + "% " + escapeHtml(t("recTarget")) + "</span>" +
-        "</span>" +
+        '<span class="pool-pct">' + pctLabel + "</span>" +
       "</div>"
     );
   }
 
+  const intro = poolRecommended ? t("recommendedPaceDesc") : t("poolIncludedIntro");
+
   return (
-    '<div class="pool-recommended">' +
-      '<div class="pool-projection-title">' +
+    '<div class="pool-included-body">' +
+      '<p class="muted small pool-included-intro">' +
+        escapeHtml(intro) +
         cardHelpButton("poolRecommended") +
-        "<span>" + escapeHtml(t("recommendedPace")) + "</span>" +
-      "</div>" +
-      '<p class="muted small pool-recommended-desc">' + escapeHtml(t("recommendedPaceDesc")) + "</p>" +
-      row(t("poolFirstParty"), autoRec, autoUsed) +
-      row(t("poolApi"), apiRec, apiUsed) +
+      "</p>" +
+      usageRow(t("poolFirstParty"), autoUsed, autoRec) +
+      usageRow(t("poolApi"), apiUsed, apiRec) +
     "</div>"
   );
 }
@@ -162,8 +179,6 @@ export function updateDailyBudgetResetCountdown() {
 }
 
 export function renderPoolUsageCard(poolUsage, poolDepletion, resetAtIso, poolSeries, poolRecommended) {
-  const autoPct = Math.min(Math.max(poolUsage.autoPercentUsed, 0), 100);
-  const apiPct = Math.min(Math.max(poolUsage.apiPercentUsed, 0), 100);
   const totalPct = Math.min(Math.max(poolUsage.totalPercentUsed, 0), 100);
   const projections = poolDepletion
     ? renderDepletionLine(t("poolFirstParty"), poolDepletion.auto, resetAtIso) +
@@ -172,27 +187,16 @@ export function renderPoolUsageCard(poolUsage, poolDepletion, resetAtIso, poolSe
 
   return (
     '<div class="card card-pool">' +
-      cardLabel(t("includedPool"), "includedPool") +
-      '<div class="card-value">' + formatPercent(totalPct) + "% " + escapeHtml(t("totalUsed")) + "</div>" +
-      '<div class="pool-rows">' +
-        '<div class="pool-row">' +
-          '<span class="pool-label">' + escapeHtml(t("poolFirstParty")) + "</span>" +
-          '<div class="progress pool-progress"><div style="width:' + autoPct + '%"></div></div>' +
-          '<span class="pool-pct">' + formatPercent(autoPct) + "%</span>" +
-        "</div>" +
-        '<div class="pool-row">' +
-          '<span class="pool-label">' + escapeHtml(t("poolApi")) + "</span>" +
-          '<div class="progress pool-progress"><div style="width:' + apiPct + '%"></div></div>' +
-          '<span class="pool-pct">' + formatPercent(apiPct) + "%</span>" +
+      '<div class="card-pool-head">' +
+        cardLabel(t("includedPool"), "includedPool") +
+        '<div class="card-value card-pool-total">' +
+          formatPercent(totalPct) + '% <span class="card-value-qual muted">' + escapeHtml(t("totalUsed")) + "</span>" +
         "</div>" +
       "</div>" +
-      renderRecommendedPace(poolUsage, poolRecommended) +
+      renderIncludedPoolUsage(poolUsage, poolRecommended) +
       (projections
         ? '<div class="pool-projection">' +
-            '<div class="pool-projection-title">' +
-              cardHelpButton("poolDepletion") +
-              '<span>' + escapeHtml(t("projectedPace")) + "</span>" +
-            "</div>" +
+            poolSectionHead("poolDepletion", "projectedPace") +
             projections +
           "</div>"
         : "") +

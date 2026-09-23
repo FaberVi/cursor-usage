@@ -25,7 +25,7 @@ const filesToCopy = [
   "bunfig.toml",
 ];
 
-const directoriesToCopy = ["dist", "media", "test"];
+const directoriesToCopy = ["dist", "media"];
 
 await rm(stageDir, { recursive: true, force: true });
 await mkdir(stageDir, { recursive: true });

@@ -11,6 +11,8 @@ export const CARD_HELP = {
     "Indicative daily budget to spread pool usage evenly until billing reset. Residual shows how much you could still use today; a negative value means you exceeded today's budget. The daily budget renews at midnight UTC; the countdown shows hours and minutes until then.",
   billingCycle:
     "Days remaining in your current billing cycle and how much of the cycle has elapsed. Pool quotas and on-demand limits reset on the date shown.",
+  grokBotWeekly:
+    "Grok Bot included allowance for the current weekly period. Separate from Cursor Models and API monthly pools; overflow after 100% uses shared on-demand if enabled.",
 } as const;
 
 export type CardHelpKey = keyof typeof CARD_HELP;

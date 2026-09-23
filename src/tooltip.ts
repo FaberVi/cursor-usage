@@ -10,7 +10,7 @@ import {
   isOnDemandVisible,
   type OnDemandUsage,
 } from "./on-demand";
-import { buildPoolTodayPaceMarkdown, buildPoolUsageMarkdown } from "./pool-usage";
+import { buildGrokBotUsageMarkdown, buildPoolTodayPaceMarkdown, buildPoolUsageMarkdown } from "./pool-usage";
 import { buildPoolUsageSeries } from "./pool-usage-series";
 
 type IncludedRequestsUsage = UsagePayload["includedRequests"];
@@ -120,7 +120,7 @@ function buildSummaryColumns(
   return columns;
 }
 
-export type UsageOverviewData = Pick<UsagePayload, "includedRequests" | "onDemand" | "poolUsage"> & {
+export type UsageOverviewData = Pick<UsagePayload, "includedRequests" | "onDemand" | "poolUsage" | "grokBotUsage"> & {
   resetsAt?: string | null;
 };
 
@@ -133,7 +133,7 @@ export function buildUsageOverviewMarkdown(
   currency: DashboardCurrency = "usd",
   showPremiumRequests = true,
 ): string {
-  const { includedRequests, onDemand, poolUsage, resetsAt = null } = data;
+  const { includedRequests, onDemand, poolUsage, grokBotUsage, resetsAt = null } = data;
   const summaryColumns = buildSummaryColumns(
     includedRequests,
     onDemand,
@@ -146,13 +146,16 @@ export function buildUsageOverviewMarkdown(
     ? buildSummaryTable(summaryColumns, renderProgressBar)
     : "";
   if (poolUsage) {
-    md += buildPoolUsageMarkdown(poolUsage, renderProgressBar, locale);
+    md += buildPoolUsageMarkdown(poolUsage, renderProgressBar, locale, resetsAt ?? null, now);
     if (events.length > 0) {
       const series = buildPoolUsageSeries(events, poolUsage, resetsAt ?? null, now);
       if (series) {
         md += buildPoolTodayPaceMarkdown(series.todayAutoPace, series.todayApiPace, renderProgressBar, locale);
       }
     }
+  }
+  if (grokBotUsage) {
+    md += buildGrokBotUsageMarkdown(grokBotUsage, renderProgressBar, locale);
   }
   return md;
 }

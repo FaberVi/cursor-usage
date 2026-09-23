@@ -1,7 +1,9 @@
 .cursor/
 code_review_report.md
 .vscode/
+.github/
 src/
+test/
 node_modules/
 !node_modules/sql.js/
 esbuild.config.mjs
@@ -15,3 +17,10 @@ bun.lock
 build/
 scripts/
 node-compile-cache/
+media/dashboard/modules/
+media/dashboard/screenshot-*.html
+media/*.png
+**/*.map
+types/
+bunfig.toml
+*.code-workspace

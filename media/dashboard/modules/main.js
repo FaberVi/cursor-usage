@@ -140,7 +140,10 @@ function renderAll() {
   applyActivityTab();
   showError(refs.state.error);
   showWarnings(refs.state.warnings);
-  ui.lastUpdated.textContent = formatUpdatedAt(refs.state.generatedAt);
+  const updatedLabel = formatUpdatedAt(refs.state.generatedAt);
+  ui.lastUpdated.textContent = refs.state.eventHistorySyncInProgress
+    ? `${updatedLabel} \u00b7 ${t("eventHistorySyncing")}`
+    : updatedLabel;
   rerenderCharts();
   renderBreakdown();
 }

@@ -39,7 +39,7 @@ describe("model pricing catalog", () => {
     for (const entry of catalog.models) {
       expect(entry.rates.output ?? entry.rates.inputPlusCacheWrite).toBeDefined();
       if (entry.pool === "firstParty") {
-        expect(["auto", "composer-2.5", "grok-4.5", "grok-4.6"]).toContain(entry.id);
+        expect(["auto", "composer-2.5", "grok-4.5", "grok-4.6", "grok-4.7", "grok-4-7-500k"]).toContain(entry.id);
       }
     }
   });
@@ -103,6 +103,10 @@ describe("resolveModelPricing", () => {
   it("resolves newly added production models", () => {
     expect(resolveModelPricingDetailed("claude-opus-5-thinking-max")?.entry.id).toBe("claude-opus-5");
     expect(resolveModelPricingDetailed("claude-opus-5-thinking-max")?.variant?.id).toBe("thinking");
+    expect(resolveModelPricingDetailed("claude-opus-5-5-fast")?.entry.id).toBe("claude-opus-5-5");
+    expect(resolveModelPricingDetailed("cursor-grok-4.7-fast")?.entry.id).toBe("grok-4.7");
+    expect(resolveModelPricingDetailed("cursor-grok-4.7-fast")?.variant?.id).toBe("fast");
+    expect(resolveModelPricing("grok-bot-default")?.pool).toBe("grokBot");
     expect(resolveModelPricingDetailed("gemini-3.6-flash-high")?.entry.id).toBe("gemini-3.6-flash");
     expect(resolveModelPricing("kimi-k3")?.displayName).toBe("Kimi K3");
     expect(getModelPricingCatalog().plans.some((plan) => plan.id === "start")).toBe(true);

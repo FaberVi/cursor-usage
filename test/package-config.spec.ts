@@ -57,12 +57,18 @@ describe("package configuration", () => {
     const vscodeIgnore = readFileSync(".vscodeignore", "utf-8").split(/\r?\n/);
     const esbuildConfig = readFileSync("esbuild.config.mjs", "utf-8");
 
-    expect(packageJson.dependencies).toEqual({ "sql.js": "^1.14.1" });
+    expect(packageJson.dependencies).toEqual({ "sql.js": "^1.14.2" });
+    expect(packageJson.engines.vscode).toBe("^1.128.0");
     expect(packageJson.scripts.package).not.toContain("--no-dependencies");
     expect(packageJson.scripts["package:vsm"]).not.toContain("--no-dependencies");
     expect(vscodeIgnore).toContain("node_modules/");
     expect(vscodeIgnore).toContain("!node_modules/sql.js/");
     expect(vscodeIgnore).toContain("node-compile-cache/");
+    expect(vscodeIgnore).toContain("test/");
+    expect(vscodeIgnore).toContain(".github/");
+    expect(vscodeIgnore).toContain("media/dashboard/modules/");
+    expect(vscodeIgnore).toContain("media/dashboard/screenshot-*.html");
+    expect(vscodeIgnore).toContain("**/*.map");
     expect(esbuildConfig).toContain('"sql.js"');
   });
 });

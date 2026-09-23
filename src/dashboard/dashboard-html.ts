@@ -211,11 +211,15 @@ function renderPricingTabPanel(): string {
       <div class="pricing-pool-banner">
         <div class="pricing-pool-card">
           <strong data-i18n="pricingPoolFirstParty">First-party models</strong>
-          <p class="muted small" data-i18n="pricingPoolFirstPartyDesc">Auto, Composer 2.5, Cursor Grok 4.5 — generous included usage</p>
+          <p class="muted small" data-i18n="pricingPoolFirstPartyDesc">Auto, Composer 2.5, Cursor Grok — generous included usage</p>
         </div>
         <div class="pricing-pool-card">
           <strong data-i18n="pricingPoolApi">API pool</strong>
           <p class="muted small" data-i18n="pricingPoolApiDesc">Specific models billed at API rates from included or on-demand usage</p>
+        </div>
+        <div class="pricing-pool-card">
+          <strong data-i18n="pricingPoolGrokBot">Grok Bot (weekly)</strong>
+          <p class="muted small" data-i18n="pricingPoolGrokBotDesc">Separate weekly allowance; not counted against monthly Cursor Models / API pools</p>
         </div>
       </div>
       <p class="pricing-modes-note muted small" data-i18n="pricingModesNote">Reasoning/thinking usually keeps the same $/M rates but uses more tokens. Fast and Max Mode can change per-token rates — see the Modes table under each model.</p>
@@ -230,6 +234,7 @@ function renderPricingTabPanel(): string {
           <select id="pricing-pool-filter">
             <option value="all" data-i18n="pricingFilterAllPools">All pools</option>
             <option value="firstParty" data-i18n="pricingPoolFirstParty">First-party models</option>
+            <option value="grokBot" data-i18n="pricingPoolGrokBot">Grok Bot (weekly)</option>
             <option value="api" data-i18n="pricingPoolApi">API</option>
           </select>
         </label>

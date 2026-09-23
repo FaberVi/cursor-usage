@@ -129,10 +129,15 @@ function renderExternalTooltip(context, opts) {
   const metricLabelText = metricLabel(local.metric);
   const showPoolCols = !!opts.poolSpendIndex && local.usageFilter !== "ondemand";
 
+  let totalMetric = 0;
+  let totalSpendCents = 0;
+
   const rows = dataPoints.map((dp) => {
     const ds = dp.dataset;
     const v = dp.parsed.y || 0;
+    totalMetric += v;
     const spend = ds.spendByDay ? (ds.spendByDay[dp.dataIndex] || 0) : 0;
+    totalSpendCents += Math.round(spend * 100);
     const color = ds.backgroundColor || colorForModel(ds.modelId || ds.label);
     let poolCells = "";
     if (showPoolCols) {
@@ -160,6 +165,16 @@ function renderExternalTooltip(context, opts) {
     );
   }).join("");
 
+  const totalRow =
+    local.metric === "tokens" && dataPoints.length > 0
+      ? '<tr class="t-total-row">' +
+          "<td>" + escapeHtml(t("total")) + "</td>" +
+          '<td class="num">' + formatTokens(totalMetric) + "</td>" +
+          '<td class="num">' + formatBillableSpendCents(totalSpendCents) + "</td>" +
+          (showPoolCols ? '<td class="num muted">—</td><td class="num muted">—</td>' : "") +
+        "</tr>"
+      : "";
+
   const headerCols =
     '<th>' + escapeHtml(t("colModel")) + '</th>' +
     '<th class="num">' + escapeHtml(metricLabelText) + '</th>' +
@@ -179,7 +194,7 @@ function renderExternalTooltip(context, opts) {
 
   el.innerHTML =
     '<div class="t-title">' + escapeHtml(title) + "</div>" +
-    '<table class="t-table"><thead><tr>' + headerCols + '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<table class="t-table"><thead><tr>' + headerCols + '</tr></thead><tbody>' + rows + totalRow + '</tbody></table>' +
     poolSection;
 
   const canvasRect = chart.canvas.getBoundingClientRect();

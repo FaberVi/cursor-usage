@@ -3,6 +3,7 @@
     refresh: "Refresh",
     refreshing: "Refreshing\u2026",
     updated: "Updated",
+    eventHistorySyncing: "Syncing activity history\u2026",
     language: "Language",
     currency: "Currency",
     perPage: "{size}/page",
@@ -91,6 +92,10 @@
     includedPool: "Included Pool",
     poolFirstParty: "First-party models",
     poolApi: "API",
+    grokBotWeekly: "Grok Bot (weekly)",
+    grokBotWeeklyUsed: "weekly allowance used",
+    grokBotWeeklyDesc: "Separate from monthly Cursor Models / API pools. After 100%, shared on-demand applies if enabled.",
+    grokBotWeeklyResetUnknown: "Resets weekly (exact time from Cursor when available)",
     billingCycle: "Billing Cycle",
     billingCycleUntilReset: "until reset",
     cycleElapsed: "of cycle elapsed",
@@ -144,6 +149,8 @@
       "Indicative daily budget to spread pool usage evenly until billing reset. White = used today; shaded zone = budget still available; tick = today's allowance. Residual text shows how much you can still use. The daily budget renews at midnight UTC; the countdown shows hours and minutes until then.",
     helpBillingCycle:
       "Days remaining in your current billing cycle and how much of the cycle has elapsed. Pool quotas and on-demand limits reset on the date shown.",
+    poolIncludedIntro:
+      "Share of each included pool used in the current billing cycle (First-party models and API).",
     recommendedPace: "Target usage",
     recommendedPaceDesc:
       "Even spread until reset: where you should be today (increases daily). Bar = actual usage; tick = target.",
@@ -167,7 +174,9 @@
       "These models were added via runtime sync and are not yet bundled in the extension. API aliases and variants may be missing. This notice clears when you update the extension.",
     pricingPoolFirstParty: "First-party models",
     pricingPoolApi: "API",
-    pricingPoolFirstPartyDesc: "Auto, Composer 2.5, Cursor Grok 4.5 \u2014 generous included usage",
+    pricingPoolGrokBot: "Grok Bot (weekly)",
+    pricingPoolFirstPartyDesc: "Auto, Composer 2.5, Cursor Grok — generous included usage",
+    pricingPoolGrokBotDesc: "Separate weekly allowance; not counted against monthly Cursor Models / API pools",
     pricingPoolApiDesc: "Specific models billed at API rates from included or on-demand usage",
     pricingSearchPlaceholder: "Search models\u2026",
     pricingFilterProvider: "Provider",

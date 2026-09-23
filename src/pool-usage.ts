@@ -1,8 +1,9 @@
 import type { UsagePayload } from "./cursor-api";
+import type { GrokBotUsage } from "./grok-bot-usage";
 import type { DashboardCurrency, DashboardLocale } from "./dashboard-locale";
 import { formatOnDemandStatus } from "./currency-format";
 import { t, tf } from "./i18n";
-import type { PoolDayPace } from "./pool-usage-series";
+import { computeRecommendedPoolUsage } from "./pool-usage-series";
 import { formatDailyBudgetResetCountdown } from "./daily-budget-reset";
 
 type ProgressBarRenderer = {
@@ -47,21 +48,57 @@ export function buildPoolUsageMarkdown(
   poolUsage: NonNullable<UsagePayload["poolUsage"]>,
   renderProgressBar: ProgressBarRenderer,
   locale: DashboardLocale,
+  resetsAt: string | null = null,
+  now = Date.now(),
 ): string {
-  const autoRatio = Math.min(Math.max(poolUsage.autoPercentUsed / 100, 0), 1);
-  const apiRatio = Math.min(Math.max(poolUsage.apiPercentUsed / 100, 0), 1);
+  const recommended = computeRecommendedPoolUsage(resetsAt, now);
+  const rows = [
+    [t(locale, "poolFirstParty"), poolUsage.autoPercentUsed, recommended?.autoRecommended ?? null],
+    [t(locale, "poolApi"), poolUsage.apiPercentUsed, recommended?.apiRecommended ?? null],
+  ] as const;
+
+  const bodyRows = rows.map(([label, used, target]) => {
+    const ratio = Math.min(Math.max(used / 100, 0), 1);
+    const usedText = formatPercent(used);
+    const sub =
+      target != null
+        ? `${usedText}% / ${formatPercent(target)}% ${t(locale, "poolTargetShort")}`
+        : `${usedText}%`;
+    return [
+      `  <tr>`,
+      `    <td width="18%"><sub>${label}</sub></td>`,
+      `    <td><sub>${sub}</sub> ${renderProgressBar.html(ratio)}</td>`,
+      `  </tr>`,
+    ].join("\n");
+  });
+
+  const intro = recommended
+    ? t(locale, "evenSpreadUntilReset")
+    : t(locale, "includedPool");
 
   return [
     `<table width="100%" cellspacing="0" cellpadding="0">`,
     `  <tr><td colspan="2"><sub>${t(locale, "includedPool")}</sub></td></tr>`,
     `  <tr><td colspan="2"><strong>${tf(locale, "totalUsed", { pct: formatPercent(poolUsage.totalPercentUsed) })}</strong></td></tr>`,
+    `  <tr><td colspan="2"><sub>${intro}</sub></td></tr>`,
+    bodyRows.join("\n"),
+    `</table>`,
+    ``,
+  ].join("\n");
+}
+
+export function buildGrokBotUsageMarkdown(
+  grokBotUsage: GrokBotUsage,
+  renderProgressBar: ProgressBarRenderer,
+  locale: DashboardLocale,
+): string {
+  const ratio = Math.min(Math.max(grokBotUsage.percentUsed / 100, 0), 1);
+  return [
+    `<table width="100%" cellspacing="0" cellpadding="0">`,
+    `  <tr><td colspan="2"><sub>${t(locale, "grokBotWeekly")}</sub></td></tr>`,
     `  <tr>`,
-    `    <td width="18%"><sub>${t(locale, "poolFirstParty")}</sub></td>`,
-    `    <td><sub>${formatPercent(poolUsage.autoPercentUsed)}%</sub> ${renderProgressBar.html(autoRatio)}</td>`,
-    `  </tr>`,
-    `  <tr>`,
-    `    <td><sub>${t(locale, "poolApi")}</sub></td>`,
-    `    <td><sub>${formatPercent(poolUsage.apiPercentUsed)}%</sub> ${renderProgressBar.html(apiRatio)}</td>`,
+    `    <td width="18%"><sub>${t(locale, "grokBotWeekly")}</sub></td>`,
+    `    <td><sub>${tf(locale, "grokBotWeeklyUsed", { pct: formatPercent(grokBotUsage.percentUsed) })}</sub> ${renderProgressBar.html(ratio)}</td>`,
     `  </tr>`,
     `</table>`,
     ``,

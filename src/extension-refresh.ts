@@ -18,7 +18,7 @@ import { getDashboardCurrency } from "./dashboard-currency-state";
 import type { DashboardCurrency, DashboardLocale } from "./dashboard-locale";
 import { isOnDemandVisible } from "./on-demand";
 import { buildDashboardState, type DashboardState } from "./dashboard-state";
-import { MAX_STORE_SYNC_PAGES } from "./cursor-api-utils";
+import { MAX_STORE_SYNC_PAGES, MAX_USAGE_EVENT_PAGES } from "./cursor-api-utils";
 import { invalidateSetupCache } from "./cursor-setup-cache";
 import { formatResetCountdown, t, tf } from "./i18n";
 import { formatStatusBarUsageText } from "./pool-usage";
@@ -50,12 +50,17 @@ let storedEventCount = 0;
 let lastWarnings: string[] = [];
 let lastEventsComplete = true;
 let pricingCatalogStore: PricingCatalogStore | null = null;
+let eventHistorySyncInProgress = false;
+let pendingBackgroundEventSync = false;
+let backgroundEventSyncPromise: Promise<void> | null = null;
 
 const STORE_LOOKBACK_DAYS = 120;
 const DEBOUNCE_MS = 30_000;
 
 export type UpdateUsageOptions = {
   force?: boolean;
+  /** Full 120-day / 100-page event store sync (background; skips usage API refetch). */
+  fullEventSync?: boolean;
 };
 
 export function initExtensionRefresh(
@@ -192,16 +197,28 @@ export function refreshStatusBarFromLastData(): void {
 
 export async function updateUsage(opts?: UpdateUsageOptions): Promise<void> {
   const force = opts?.force ?? false;
-  while (fetchPromise) {
-    if (!force) {
+  const fullEventSync = opts?.fullEventSync ?? false;
+  if (fetchPromise) {
+    if (!force && !fullEventSync) {
       queuedNonForce = true;
       return;
     }
-    queuedForce = true;
+    if (force && !fullEventSync) {
+      queuedForce = true;
+    } else if (fullEventSync) {
+      pendingBackgroundEventSync = true;
+    }
+    await fetchPromise;
+    while (fetchPromise) {
+      await fetchPromise;
+    }
+    if (fullEventSync) {
+      return;
+    }
     return;
   }
 
-  const run = runUpdateUsage(force);
+  const run = fullEventSync ? runEventHistorySync() : runUpdateUsage(force);
   fetchPromise = run;
   try {
     await run;
@@ -218,6 +235,83 @@ export async function updateUsage(opts?: UpdateUsageOptions): Promise<void> {
   } else if (queuedNonForce) {
     queuedNonForce = false;
     await updateUsage();
+  } else if (force && !fullEventSync) {
+    requestBackgroundEventHistorySync();
+  }
+}
+
+function requestBackgroundEventHistorySync(): void {
+  pendingBackgroundEventSync = true;
+  if (backgroundEventSyncPromise) {
+    return;
+  }
+  backgroundEventSyncPromise = drainBackgroundEventHistorySync().finally(() => {
+    backgroundEventSyncPromise = null;
+  });
+}
+
+async function drainBackgroundEventHistorySync(): Promise<void> {
+  while (pendingBackgroundEventSync) {
+    pendingBackgroundEventSync = false;
+    await updateUsage({ fullEventSync: true });
+    if (!pendingBackgroundEventSync) {
+      break;
+    }
+  }
+}
+
+async function runEventHistorySync(): Promise<void> {
+  const storeSince = Date.now() - STORE_LOOKBACK_DAYS * 86_400_000;
+  const locale = getLocale();
+  eventHistorySyncInProgress = true;
+  DashboardPanel.currentPanel?.postState(getDashboardState());
+  log("Background event history sync started");
+
+  try {
+    const eventsResult = await fetchUsageEvents({
+      maxPages: MAX_STORE_SYNC_PAGES,
+      lookbackDays: STORE_LOOKBACK_DAYS,
+    });
+    const warnings = [...lastWarnings];
+    let eventsComplete = eventsResult.complete;
+    if (!eventsComplete) {
+      warnings.push(t(locale, "warningEventsIncomplete"));
+    }
+
+    try {
+      const store = await ensureEventStore();
+      if (eventsComplete) {
+        store.syncEventsFromApi(eventsResult.events, storeSince, { allowEmpty: true });
+        store.flushPersist();
+      } else {
+        store.upsertEvents(eventsResult.events);
+      }
+      lastEvents = await loadStoredEvents();
+    } catch (err: unknown) {
+      log(`Event store sync failed: ${err instanceof Error ? err.message : String(err)}`);
+      warnings.push(t(locale, "warningEventStoreSyncFailed"));
+      lastEvents = eventsResult.events;
+      eventsComplete = false;
+    }
+
+    await refreshConversationTitles(lastEvents ?? []);
+    lastWarnings = warnings;
+    lastEventsComplete = eventsComplete;
+
+    if (lastData) {
+      const enriched = enrichUsageFromEvents(lastData, lastEvents ?? [], Date.now());
+      lastData = enriched;
+      updateStatusBar(enriched, buildStatusBarContext());
+    }
+
+    DashboardPanel.currentPanel?.postState(getDashboardState());
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log(`Background event history sync failed: ${msg}`);
+  } finally {
+    eventHistorySyncInProgress = false;
+    DashboardPanel.currentPanel?.postState(getDashboardState());
+    log("Background event history sync finished");
   }
 }
 
@@ -229,7 +323,6 @@ async function runUpdateUsage(force: boolean): Promise<void> {
     invalidateSetupCache();
   }
 
-  const storeSince = Date.now() - STORE_LOOKBACK_DAYS * 86_400_000;
   const locale = getLocale();
   const warnings: string[] = [];
   let eventsComplete = true;
@@ -237,7 +330,7 @@ async function runUpdateUsage(force: boolean): Promise<void> {
   try {
     const [dataResult, eventsResult] = await Promise.allSettled([
       fetchUsageData(),
-      fetchUsageEvents({ maxPages: MAX_STORE_SYNC_PAGES, lookbackDays: STORE_LOOKBACK_DAYS }),
+      fetchUsageEvents({ maxPages: MAX_USAGE_EVENT_PAGES, lookbackDays: STORE_LOOKBACK_DAYS }),
     ]);
 
     const data = dataResult.status === "fulfilled" ? dataResult.value : null;
@@ -261,12 +354,7 @@ async function runUpdateUsage(force: boolean): Promise<void> {
       }
       try {
         const store = await ensureEventStore();
-        if (force && complete) {
-          store.syncEventsFromApi(apiEvents, storeSince, { allowEmpty: true });
-          store.flushPersist();
-        } else {
-          store.upsertEvents(apiEvents);
-        }
+        store.upsertEvents(apiEvents);
         lastEvents = await loadStoredEvents();
       } catch (err: unknown) {
         log(`Event store sync failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -384,6 +472,7 @@ export function getDashboardState(): DashboardState {
     allEvents,
     lastWarnings,
     lastEventsComplete,
+    eventHistorySyncInProgress,
   );
 }
 
@@ -395,6 +484,8 @@ export function cleanupExtensionRefresh(): void {
   fetchPromise = null;
   queuedNonForce = false;
   queuedForce = false;
+  pendingBackgroundEventSync = false;
+  eventHistorySyncInProgress = false;
   eventStore?.close();
   eventStore = null;
 }

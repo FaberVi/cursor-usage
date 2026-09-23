@@ -2,7 +2,7 @@
 
 Community-maintained fork of [cursor-metrics](https://github.com/wrick17/cursor-metrics). See Cursor usage in your status bar: included requests, Auto/API pool usage, and on-demand spend, live while you work. Click the status bar item to open a full dashboard inside your editor.
 
-**Current release:** `1.0.0` — resilient fetch, team-aware usage routing, page-wise conversation reads, EN/IT dashboard, and GitHub CI.
+**Current release:** `1.0.3` — Grok Bot weekly allowance, unified included-pool summary card, faster manual refresh with background activity sync, EN/IT dashboard copy, and tooling updates (requires **Cursor / VS Code 1.128+**).
 
 ![Cursor Usage extension tooltip](media/extensions-tooltip.png)
 
@@ -30,21 +30,21 @@ Community-maintained fork of [cursor-metrics](https://github.com/wrick17/cursor-
 ### Dashboard
 
 - **Summary cards** for on-demand spend and included pools (Auto / API / total). Legacy request-quota card appears only on older personal plans without pool data.
-- **Included pool card extras** (Team / Enterprise):
-  - Projected date each pool hits 100% at the current average consumption rate since cycle start.
-  - **Target usage** — cumulative target if spread evenly until reset, compared with actual Auto/API usage.
-  - **Daily budget** — daily allowance bar with residual headroom or overspend vs an even spread.
+- **Included pool** (single card on pool-based plans):
+  - Live Auto/API bars with **target usage** (even spread until reset) vs actual consumption and total pool %.
+  - **Projected 100%** — estimated depletion date at the current average rate since cycle start.
+  - **Daily budget** — allowance bar, residual or overspend vs even spread, and midnight UTC reset countdown.
+- **Grok Bot (weekly)** summary card when your plan includes it (separate from monthly Auto/API pools).
 - **Pool Usage section** (when pool data is available):
   - Cumulative Auto/API % line chart for the billing cycle.
   - **Daily balance** chart — positive bars = budget left that day; negative = overspend vs even spread.
 - **Your Usage** — stacked per-day bar chart (spend, tokens, or requests) with range tabs and usage filters.
-  - Chart tooltip includes per-model values **and daily pool %** (Auto/API consumed that day).
+  - Chart tooltip lists per-model values for the hovered day, **pool share / quota points** (when included usage is shown), daily pool % footer, and a **total row for tokens** (plus summed spend) when the chart metric is tokens.
 - **Usage by Model** — sortable breakdown table with chart-matched colors.
 - **Events** — paginated, sortable event log with token breakdown modal and CSV export.
 - **Language selector** (`EN` / `IT`) and **currency selector** (`USD` / `EUR`) in the header next to Refresh; choices are persisted.
 - **Sticky main tabs:** **Usage**, **Pools**, **Pricing**, and **Activity** (events / conversations).
 - **Pricing tab** with official per-component model rates, variant modes, token cost calculator, actual vs theoretical spend comparison, and pin/reorder for favorite models.
-- **Daily budget reset countdown** on the pool card (renews at midnight UTC).
 - Collapsible sections with persisted open/closed state.
 
 Screenshots above use Italian (IT) and EUR; regenerate with `bun run screenshots` after `bun install`.
@@ -76,15 +76,18 @@ All pool pacing views are **indicative** — they assume an even spread of the 1
 | **Target usage** | Where cumulative Auto/API usage *should* be today to reach reset without early depletion (dashboard pool card). |
 | **Daily balance chart** | Per-day headroom (+) or overspend (−) relative to that even spread. |
 | **Projected 100%** | When each pool would hit 100% if the average daily rate since cycle start continues. |
-| **Chart tooltip pool %** | Auto and API pool percentage consumed on that specific day. |
+| **Chart tooltip pool %** | Auto and API pool percentage consumed on that specific day (footer). With metric **tokens**, the tooltip also shows a **Total** row summing tokens and spend for all models that day. |
 
-Daily pool percentages are derived from included usage events (first-party catalog models such as Auto/`default`, Composer 2.5, and Cursor Grok 4.5 → First-party pool; other models → API pool) and calibrated against the live totals from Cursor's usage API.
+Daily pool percentages are derived from included usage events (first-party catalog models such as Auto/`default`, Composer 2.5, and Cursor Grok → First-party pool; other models → API pool) and calibrated against the live totals from Cursor's usage API. **Grok Bot** rows (`grok-bot-default`, `grok-bot-automation`, `grok-bot-cua`) use a separate weekly allowance and are excluded from monthly pool pacing in this extension.
+
+When your plan includes Grok Bot, the dashboard summary shows a **Grok Bot (weekly)** card from `POST /api/dashboard/get-sand-usage-status` (same meter as the Cursor spending UI). The status bar tooltip includes the weekly percentage when available (Italian UI: *quota settimanale consumata*).
 
 ## Privacy and behavior
 
 - No manual API key setup required.
 - Uses your existing signed-in Cursor session locally.
 - Fetches on activity (editing/focus) instead of constant polling.
+- Manual **Refresh** updates usage quickly, then syncs older dashboard events in the background when needed.
 - Caches auth and API responses to avoid redundant requests.
 
 ## Quality
@@ -97,7 +100,7 @@ Daily pool percentages are derived from included usage events (first-party catal
 ### Prerequisites
 
 - [Bun](https://bun.sh/) 1.x
-- [Cursor](https://cursor.com/) or [VS Code](https://code.visualstudio.com/) 1.85+
+- [Cursor](https://cursor.com/) or [VS Code](https://code.visualstudio.com/) **1.128+** (`engines.vscode` in `package.json`; matches current Cursor builds, e.g. 3.21 on VS Code API 1.128)
 - For packaging and publishing: network access (Chart.js download, `@vscode/vsce`, `ovsx` via `bunx`)
 
 ### Clone and install
@@ -151,13 +154,13 @@ Install a VSIX locally for smoke testing:
 
 ```bash
 # Cursor
-cursor --install-extension build/cursor-usage-1.0.0.vsix
+cursor --install-extension build/cursor-usage-<version>.vsix
 
 # VS Code
-code --install-extension build/cursor-usage-1.0.0.vsix
+code --install-extension build/cursor-usage-<version>.vsix
 ```
 
-Replace `1.0.0` with the version from `package.json`.
+Replace `<version>` with the value in `package.json` (e.g. `1.0.3`).
 
 ### Publish to marketplaces
 
@@ -237,7 +240,7 @@ bunx ovsx publish build/cursor-usage-<version>.vsix -p "$OPEN_VSX_TOKEN"
 ## Authors & maintainers
 
 - **Created by** [wrick17](https://github.com/wrick17) — original extension and [cursor-metrics](https://github.com/wrick17/cursor-metrics) repository.
-- **Maintained by** [Vincenzo Fabiano (FaberVi)](https://github.com/FaberVi) — community fork ([cursor-usage](https://github.com/FaberVi/cursor-usage)), pool analytics, dashboard i18n, pacing projections, and ongoing improvements. Published on the VS Marketplace as [fabervi](https://marketplace.visualstudio.com/publishers/fabervi).
+- **Maintained by** [Vincenzo Fabiano (FaberVi)](https://github.com/FaberVi) — community fork ([cursor-usage](https://github.com/FaberVi/cursor-usage)), pool analytics, Grok Bot weekly meter, dashboard i18n, pacing projections, and ongoing improvements. Published on the VS Marketplace as [fabervi](https://marketplace.visualstudio.com/publishers/fabervi).
 
 ## License
 

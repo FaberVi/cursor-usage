@@ -44,7 +44,9 @@ export function formatRateCell(rate) {
 }
 
 export function poolLabel(pool) {
-  return pool === "firstParty" ? t("pricingPoolFirstParty") : t("pricingPoolApi");
+  if (pool === "firstParty") return t("pricingPoolFirstParty");
+  if (pool === "grokBot") return t("pricingPoolGrokBot");
+  return t("pricingPoolApi");
 }
 
 export function deltaClass(deltaPercent) {

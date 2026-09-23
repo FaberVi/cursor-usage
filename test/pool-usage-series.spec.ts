@@ -6,6 +6,8 @@ import {
   computeDailyPoolPacing,
   computeRecommendedPoolUsage,
   isAutoPoolEvent,
+  countsTowardCursorMonthlyPools,
+  isGrokBotUsageModel,
   projectPoolDepletion,
 } from "../src/pool-usage-series";
 
@@ -53,6 +55,16 @@ describe("isAutoPoolEvent", () => {
     expect(isAutoPoolEvent({ ...baseEvent, timestamp: now, model: "gpt-5", spendCents: 100 })).toBeFalse();
     expect(isAutoPoolEvent({ ...baseEvent, timestamp: now, model: "composer-1", spendCents: 100 })).toBeFalse();
   });
+
+  it("excludes Grok Bot usage from monthly Cursor pools", () => {
+    expect(isGrokBotUsageModel("grok-bot-default")).toBeTrue();
+    expect(isGrokBotUsageModel("grok-bot-automation")).toBeTrue();
+    expect(isGrokBotUsageModel("grok-bot-cua")).toBeTrue();
+    expect(isAutoPoolEvent({ ...baseEvent, timestamp: now, model: "grok-bot-default", spendCents: 100 })).toBeFalse();
+    expect(
+      countsTowardCursorMonthlyPools({ ...baseEvent, timestamp: now, model: "grok-bot-cua", spendCents: 100 }),
+    ).toBeFalse();
+  });
 });
 
 describe("buildPoolUsageSeries", () => {
@@ -99,6 +111,22 @@ describe("buildPoolUsageSeries", () => {
     expect(series.dailyApiPercent[1]).toBeCloseTo(10, 5);
     expect(series.autoPercent.at(-1)).toBeCloseTo(40, 5);
     expect(series.apiPercent.at(-1)).toBeCloseTo(10, 5);
+  });
+
+  it("ignores Grok Bot included events when reconstructing monthly pool series", () => {
+    const mixed: UsageEvent[] = [
+      { ...baseEvent, timestamp: cycleStart + 3_600_000, model: "default", spendCents: 100 },
+      { ...baseEvent, timestamp: cycleStart + 3_600_000, model: "grok-bot-default", spendCents: 900 },
+      { ...baseEvent, timestamp: cycleStart + 3_600_000, model: "grok-bot-automation", spendCents: 500 },
+    ];
+    const series = buildPoolUsageSeries(
+      mixed,
+      { autoPercentUsed: 10, apiPercentUsed: 0, totalPercentUsed: 5 },
+      resetsAt,
+      now,
+    )!;
+    expect(series.dailyAutoPercent[0]).toBeCloseTo(10, 5);
+    expect(series.dailyApiPercent[0]).toBeCloseTo(0, 5);
   });
 
   it("falls back to an even daily shape when included spend events are missing", () => {
