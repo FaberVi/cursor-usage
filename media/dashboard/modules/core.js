@@ -22,6 +22,7 @@ export const ui = {
   breakdownFoot: document.querySelector("#breakdown-table tfoot"),
   breakdownHead: document.querySelector("#breakdown-table thead"),
   breakdownRangeLabel: document.getElementById("breakdown-range-label"),
+  breakdownGrokBotToggle: document.getElementById("breakdown-grok-bot-toggle"),
   breakdownPoolNote: document.getElementById("breakdown-pool-note"),
   pricingBody: document.querySelector("#pricing-table tbody"),
   pricingHead: document.querySelector("#pricing-table thead"),
@@ -37,6 +38,10 @@ export const ui = {
   pricingPoolFilter: document.getElementById("pricing-pool-filter"),
   pricingUsedOnly: document.getElementById("pricing-used-only"),
   pagination: document.getElementById("pagination"),
+  grokTableBody: document.querySelector("#grok-events-table tbody"),
+  grokTableHead: document.querySelector("#grok-events-table thead"),
+  grokPagination: document.getElementById("grok-pagination"),
+  grokEventsPanel: document.getElementById("grok-events-panel"),
   conversationsBody: document.querySelector("#conversations-table tbody"),
   conversationsHead: document.querySelector("#conversations-table thead"),
   conversationsPagination: document.getElementById("conversations-pagination"),
@@ -81,6 +86,7 @@ export const local = {
   sortOrder: persisted.sortOrder || "desc",
   breakdownSortKey: persisted.breakdownSortKey || "totalTokens",
   breakdownSortOrder: persisted.breakdownSortOrder || "desc",
+  breakdownShowGrokBot: persisted.breakdownShowGrokBot !== false,
   mainTab: MAIN_TABS.includes(persisted.mainTab) ? persisted.mainTab : "usage",
   sectionOpen: {
     usage: persisted.sectionOpen?.usage !== false,
@@ -93,7 +99,15 @@ export const local = {
   eventsPageSize: EVENTS_PAGE_SIZES.includes(persisted.eventsPageSize)
     ? persisted.eventsPageSize
     : DEFAULT_EVENTS_PAGE_SIZE,
-  activityTab: persisted.activityTab === "conversations" ? "conversations" : "events",
+  grokEventsPage: Math.max(1, persisted.grokEventsPage || 1),
+  grokEventsPageSize: EVENTS_PAGE_SIZES.includes(persisted.grokEventsPageSize)
+    ? persisted.grokEventsPageSize
+    : DEFAULT_EVENTS_PAGE_SIZE,
+  grokSortKey: persisted.grokSortKey || "timestamp",
+  grokSortOrder: persisted.grokSortOrder || "desc",
+  activityTab: persisted.activityTab === "conversations" || persisted.activityTab === "grokBot"
+    ? persisted.activityTab
+    : "events",
   conversationPreview: false,
   conversationsPage: Math.max(1, persisted.conversationsPage || 1),
   conversationsPageSize: EVENTS_PAGE_SIZES.includes(persisted.conversationsPageSize)
@@ -195,10 +209,15 @@ export function persistLocal() {
     sortOrder: local.sortOrder,
     breakdownSortKey: local.breakdownSortKey,
     breakdownSortOrder: local.breakdownSortOrder,
+    breakdownShowGrokBot: local.breakdownShowGrokBot,
     mainTab: local.mainTab,
     sectionOpen: local.sectionOpen,
     eventsPage: local.eventsPage,
     eventsPageSize: local.eventsPageSize,
+    grokEventsPage: local.grokEventsPage,
+    grokEventsPageSize: local.grokEventsPageSize,
+    grokSortKey: local.grokSortKey,
+    grokSortOrder: local.grokSortOrder,
     activityTab: local.activityTab,
     conversationsPage: local.conversationsPage,
     conversationsPageSize: local.conversationsPageSize,
@@ -217,6 +236,11 @@ export function persistLocal() {
 
 export function resetEventsPage() {
   local.eventsPage = 1;
+  persistLocal();
+}
+
+export function resetGrokEventsPage() {
+  local.grokEventsPage = 1;
   persistLocal();
 }
 

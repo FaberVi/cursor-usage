@@ -1,5 +1,7 @@
 export type TeamSeatType = "standard" | "premium" | "unpaid";
 
+export type BillingProgram = "cursor" | "x_subscription";
+
 export type PlanInfo = {
   accountType: "team" | "personal";
   planKind: "teams" | "enterprise" | "personal";
@@ -7,6 +9,7 @@ export type PlanInfo = {
   tier: string;
   priceLabel: string | null;
   displayName: string;
+  billingProgram?: BillingProgram;
 };
 
 const TIER_LABELS: Record<string, string> = {
@@ -24,15 +27,58 @@ const TIER_LABELS: Record<string, string> = {
   self_serve: "Self Serve",
 };
 
+/** The X Subscription tier slugs (unverified against live API until probe fixtures exist). */
+const X_SUBSCRIPTION_TIER_SLUGS = new Set([
+  "x-plus",
+  "x-premium",
+  "x-super",
+  "x-ultra",
+  "x-subscription",
+  "the-x-subscription",
+]);
+
+const X_SUBSCRIPTION_TIER_LABELS: Record<string, string> = {
+  "x-plus": "Plus",
+  "x-premium": "Premium",
+  "x-super": "Super",
+  "x-ultra": "Ultra",
+  "x-subscription": "The X Subscription",
+  "the-x-subscription": "The X Subscription",
+};
+
+export function isXSubscriptionMembership(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const key = raw.trim().toLowerCase().replace(/_/g, "-");
+  return X_SUBSCRIPTION_TIER_SLUGS.has(key);
+}
+
+function formatXSubscriptionTier(key: string): string | null {
+  const short = X_SUBSCRIPTION_TIER_LABELS[key];
+  if (!short) return null;
+  if (short === "The X Subscription") return short;
+  return `The X · ${short}`;
+}
+
 export function formatMembershipTier(raw: string | null | undefined): string {
   if (!raw) return "Unknown";
   const key = raw.trim().toLowerCase().replace(/_/g, "-");
+  const xLabel = formatXSubscriptionTier(key);
+  if (xLabel) return xLabel;
   if (TIER_LABELS[key]) return TIER_LABELS[key]!;
   return raw
     .split(/[-_]/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(" ");
+}
+
+function personalDisplayName(tierRaw: string | null, tier: string): string {
+  if (!isXSubscriptionMembership(tierRaw)) {
+    return tier !== "Unknown" ? `Personal · ${tier}` : "Personal";
+  }
+  if (tier === "The X Subscription") return "The X Subscription";
+  const short = tier.startsWith("The X · ") ? tier.slice("The X · ".length) : tier;
+  return `The X Subscription · ${short}`;
 }
 
 export function parseTeamSeatType(input: {
@@ -130,6 +176,7 @@ export function buildPlanInfo(input: {
         tier: "Enterprise",
         priceLabel: null,
         displayName: "Enterprise",
+        billingProgram: "cursor",
       };
     }
 
@@ -142,6 +189,7 @@ export function buildPlanInfo(input: {
         tier: seat.tier,
         priceLabel: seat.priceLabel,
         displayName: `Teams · ${seat.tier}`,
+        billingProgram: "cursor",
       };
     }
 
@@ -154,6 +202,7 @@ export function buildPlanInfo(input: {
         tier: seat.tier,
         priceLabel: seat.priceLabel,
         displayName: `Teams · ${seat.tier} (${seat.priceLabel})`,
+        billingProgram: "cursor",
       };
     }
 
@@ -164,17 +213,20 @@ export function buildPlanInfo(input: {
       tier: "Teams",
       priceLabel: null,
       displayName: "Teams",
+      billingProgram: "cursor",
     };
   }
 
   const tierRaw = input.individualMembershipType ?? input.membershipType ?? null;
   const tier = formatMembershipTier(tierRaw);
+  const xSub = isXSubscriptionMembership(tierRaw);
   return {
     accountType: "personal",
     planKind: "personal",
     seatType: null,
     tier,
     priceLabel: null,
-    displayName: tier !== "Unknown" ? `Personal · ${tier}` : "Personal",
+    displayName: personalDisplayName(tierRaw, tier),
+    billingProgram: xSub ? "x_subscription" : "cursor",
   };
 }

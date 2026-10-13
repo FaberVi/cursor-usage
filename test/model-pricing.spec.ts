@@ -112,6 +112,29 @@ describe("resolveModelPricing", () => {
     expect(getModelPricingCatalog().plans.some((plan) => plan.id === "start")).toBe(true);
   });
 
+  it("resolves October 2026 models and Sonnet 5 hidden flag", () => {
+    const haiku = resolveModelPricingDetailed("claude-haiku-5.5");
+    expect(haiku?.entry.id).toBe("claude-haiku-5-5");
+    expect(haiku?.entry.hidden).toBeUndefined();
+    expect(haiku?.effectiveRates).toEqual({ input: 0.1, cacheWrite: 0.125, cacheRead: 0.01, output: 0.5 });
+    expect(resolveModelPricingDetailed("claude-haiku-5-5-thinking-high")?.variant?.id).toBe("thinking");
+    const haikuLong = haiku?.entry.variants?.find((variant) => variant.id === "long-context");
+    expect(haikuLong?.rateMultiplier).toBe(5);
+
+    const sonnet55 = resolveModelPricingDetailed("claude-sonnet-5-5");
+    expect(sonnet55?.entry.displayName).toBe("Claude Sonnet 5.5");
+    expect(sonnet55?.effectiveRates.cacheRead).toBe(0.1);
+    expect(sonnet55?.effectiveRates.output).toBe(10);
+    expect(resolveModelPricing("claude-sonnet-5")?.hidden).toBe(true);
+
+    expect(resolveModelPricing("glm-5.3")?.rates.output).toBe(4.4);
+    expect(resolveModelPricing("glm-5.3")?.hidden).toBe(true);
+    expect(resolveModelPricingDetailed("glm-5.3-max")?.variant?.id).toBe("high");
+    const flash = resolveModelPricing("glm-5.3-flash");
+    expect(flash?.rates).toEqual({ input: 0.15, cacheRead: 0.029, output: 0.5 });
+    expect(flash?.pool).toBe("api");
+  });
+
   it("auto-resolves thinking effort slugs for models with thinking variants", () => {
     const cases: Array<{ slug: string; modelId: string; variantId?: string }> = [
       { slug: "claude-4-sonnet-thinking-high", modelId: "claude-4-sonnet", variantId: "thinking" },

@@ -59,6 +59,10 @@ mock.module("../src/dashboard-panel", () => ({
       postState: () => {
         postStateCalls += 1;
       },
+      postLoading: (on: boolean) => {
+        postLoadingCalls += 1;
+        postLoadingState = on;
+      },
     },
     getDashboardEventFilter: () => null,
   },
@@ -78,10 +82,17 @@ let usageEventsHttpCalls = 0;
 let syncEventsFromApiCalls = 0;
 let upsertEventsCalls = 0;
 let eventsFetchComplete = true;
+/** When set, full pages are returned only for the first N usage-event HTTP calls. */
+let completeUsageEventsAfterCalls: number | null = null;
 let eventsFetchRejected = false;
 let spendFetchRejected = false;
 let usageDataRejected = false;
 let postStateCalls = 0;
+let postLoadingState: boolean | null = null;
+let postLoadingCalls = 0;
+let backgroundSyncBlocked: Promise<void> | null = null;
+let releaseBackgroundSync: (() => void) | null = null;
+let onBackgroundSyncBlocked: (() => void) | null = null;
 
 const summaryWithPlan = {
   individualUsage: {
@@ -131,7 +142,10 @@ function installFetchMock(): void {
         throw new Error("events failed");
       }
       usageEventsHttpCalls += 1;
-      if (!eventsFetchComplete) {
+      const serveFullPage =
+        !eventsFetchComplete &&
+        (completeUsageEventsAfterCalls === null || usageEventsHttpCalls <= completeUsageEventsAfterCalls);
+      if (serveFullPage) {
         const pageSize = 500;
         const fullPage = Array.from({ length: pageSize }, (_, i) => ({
           timestamp: String(Date.now() - i),
@@ -201,10 +215,16 @@ describe("updateUsage force refresh", () => {
     upsertEventsCalls = 0;
     invalidateSetupCache.mockClear();
     eventsFetchComplete = true;
+    completeUsageEventsAfterCalls = null;
     eventsFetchRejected = false;
     spendFetchRejected = false;
     usageDataRejected = false;
     postStateCalls = 0;
+    postLoadingState = null;
+    postLoadingCalls = 0;
+    backgroundSyncBlocked = null;
+    releaseBackgroundSync = null;
+    onBackgroundSyncBlocked = null;
     firstFetchGate = null;
     releaseFirstFetch = null;
     secondFetchGate = null;
@@ -218,6 +238,10 @@ describe("updateUsage force refresh", () => {
     originalUpsertEvents = UsageEventStore.prototype.upsertEvents;
     UsageEventStore.prototype.syncEventsFromApi = function (...args) {
       syncEventsFromApiCalls += 1;
+      if (backgroundSyncBlocked) {
+        onBackgroundSyncBlocked?.();
+        return backgroundSyncBlocked.then(() => originalSyncEventsFromApi.apply(this, args));
+      }
       return originalSyncEventsFromApi.apply(this, args);
     };
     UsageEventStore.prototype.upsertEvents = function (...args) {
@@ -234,12 +258,65 @@ describe("updateUsage force refresh", () => {
     initExtensionRefresh(extensionContext, statusBarItem, outputChannel);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    const { waitForBackgroundEventSyncIdle } = await import("../src/usage-refresh-fetch");
+    await waitForBackgroundEventSyncIdle();
     cleanupExtensionRefresh();
     globalThis.fetch = originalFetch;
     UsageEventStore.prototype.syncEventsFromApi = originalSyncEventsFromApi;
     UsageEventStore.prototype.upsertEvents = originalUpsertEvents;
     rmSync(storageDir, { recursive: true, force: true });
+  });
+
+  it("keeps dashboard postLoading and status bar spinner in sync during fetch", async () => {
+    firstFetchGate = new Promise<void>((resolve) => {
+      releaseFirstFetch = resolve;
+    });
+
+    const pending = updateUsage({ force: true });
+    for (let i = 0; i < 50 && fetchUsageDataCalls === 0; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    expect(postLoadingState).toBe(true);
+    expect(statusBarItem.text.includes("$(loading~spin)")).toBeTrue();
+
+    releaseFirstFetch?.();
+    await pending;
+    const { waitForBackgroundEventSyncIdle } = await import("../src/usage-refresh-fetch");
+    await waitForBackgroundEventSyncIdle();
+
+    expect(postLoadingState).toBe(false);
+    expect(statusBarItem.text.includes("$(pulse)")).toBeTrue();
+    expect(postLoadingCalls).toBeGreaterThanOrEqual(2);
+  });
+
+  it("keeps status bar spinner during background event history sync", async () => {
+    backgroundSyncBlocked = new Promise<void>((resolve) => {
+      releaseBackgroundSync = resolve;
+    });
+    let blockedSyncReached = false;
+    const blockedSyncPromise = new Promise<void>((resolve) => {
+      onBackgroundSyncBlocked = () => {
+        blockedSyncReached = true;
+        expect(postLoadingState).toBe(true);
+        expect(statusBarItem.text.includes("$(loading~spin)")).toBeTrue();
+        resolve();
+      };
+    });
+
+    const pending = updateUsage({ force: true });
+    await blockedSyncPromise;
+    expect(blockedSyncReached).toBe(true);
+    expect(syncEventsFromApiCalls).toBeGreaterThanOrEqual(1);
+
+    releaseBackgroundSync?.();
+    backgroundSyncBlocked = null;
+    await pending;
+    const { waitForBackgroundEventSyncIdle } = await import("../src/usage-refresh-fetch");
+    await waitForBackgroundEventSyncIdle();
+
+    expect(postLoadingState).toBe(false);
+    expect(statusBarItem.text.includes("$(pulse)")).toBeTrue();
   });
 
   it("invalidates setup cache and upserts events on interactive force refresh", async () => {
@@ -269,8 +346,11 @@ describe("updateUsage force refresh", () => {
   it("uses upsert when force refresh receives an incomplete event snapshot", async () => {
     eventsFetchComplete = false;
     await updateUsage({ force: true });
+    for (let i = 0; i < 400 && usageEventsHttpCalls < 110; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
     expect(syncEventsFromApiCalls).toBe(0);
-    expect(upsertEventsCalls).toBe(1);
+    expect(upsertEventsCalls).toBeGreaterThanOrEqual(1);
   });
 
   it("coalesces concurrent force refreshes into one extra fetch", async () => {
@@ -350,11 +430,38 @@ describe("updateUsage force refresh", () => {
     expect(postStateCalls).toBeGreaterThan(0);
   });
 
-  it("records partial sync warning when event snapshot is incomplete", async () => {
+  it("records partial sync warning when the full history sync hits the page cap", async () => {
     eventsFetchComplete = false;
     await updateUsage({ force: true });
+    for (let i = 0; i < 400 && usageEventsHttpCalls < 110; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
     const state = getDashboardState();
+    expect(usageEventsHttpCalls).toBeGreaterThanOrEqual(110);
     expect(state.eventsComplete).toBeFalse();
-    expect(state.warnings.some((w) => w.toLowerCase().includes("partial") || w.toLowerCase().includes("parziale"))).toBeTrue();
+    expect(
+      state.warnings.some(
+        (w) =>
+          w.message.toLowerCase().includes("partial") || w.message.toLowerCase().includes("parziale"),
+      ),
+    ).toBeTrue();
+  });
+
+  it("does not keep the page-limit warning when the background sync covers the window", async () => {
+    eventsFetchComplete = false;
+    completeUsageEventsAfterCalls = 10;
+    await updateUsage();
+    for (let i = 0; i < 50 && usageEventsHttpCalls < 11; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    const state = getDashboardState();
+    expect(usageEventsHttpCalls).toBe(11);
+    expect(state.eventsComplete).toBeTrue();
+    expect(
+      state.warnings.some(
+        (w) =>
+          w.message.toLowerCase().includes("partial") || w.message.toLowerCase().includes("parziale"),
+      ),
+    ).toBeFalse();
   });
 });

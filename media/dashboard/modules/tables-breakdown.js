@@ -15,6 +15,7 @@ import {
   startOfUtcDay,
 } from "./format.js";
 import { t } from "./i18n.js";
+import { isGrokBotModelId } from "./tables-events.js";
 import { estimateEventTheoreticalCost, eventReportedUsageCostCents, resolveModelPricing } from "../../../src/model-pricing.ts";
 import { getEstimateOpts } from "./pricing-shared.js";
 import {
@@ -143,11 +144,23 @@ function aggregateModelBreakdown() {
   return { rows, eventCount: filteredEvents.length };
 }
 
+function syncBreakdownGrokBotToggle() {
+  if (!ui.breakdownGrokBotToggle) return;
+  const show = local.breakdownShowGrokBot !== false;
+  ui.breakdownGrokBotToggle.setAttribute("aria-pressed", show ? "true" : "false");
+  ui.breakdownGrokBotToggle.title = t("breakdownGrokBotToggleHelp");
+}
+
 export function renderBreakdown() {
   if (!ui.breakdownBody) return;
 
   const period = formatRangePeriod(local.breakdownRange, refs.state?.resetsAt ?? null);
-  const { rows, eventCount } = aggregateModelBreakdown();
+  const { rows: allRows, eventCount } = aggregateModelBreakdown();
+  const rows =
+    local.breakdownShowGrokBot === false
+      ? allRows.filter((r) => !isGrokBotModelId(r.model))
+      : allRows;
+  syncBreakdownGrokBotToggle();
 
   if (ui.breakdownRangeLabel) {
     let label = "(" + breakdownRangeLabel() + " · " + period + " · " +

@@ -17,6 +17,7 @@ const STATIC_I18N = {
   "section.pool.title": "sectionPool",
   "section.pool.desc": "sectionPoolDesc",
   "section.breakdown.title": "sectionBreakdown",
+  "breakdown.grokBotToggle": "breakdownGrokBotToggle",
   "section.pricing.title": "sectionPricing",
   "section.pricing.desc": "sectionPricingDesc",
   "pricingSource": "pricingSource",
@@ -38,6 +39,7 @@ const STATIC_I18N = {
   "pricingColDelta": "pricingColDelta",
   "pricingModesNote": "pricingModesNote",
   "tab.events": "tabEvents",
+  "tab.grokBot": "tabGrokBot",
   "tab.conversations": "tabConversations",
   "mainTab.usage": "mainTabUsage",
   "mainTab.pools": "mainTabPools",
@@ -85,12 +87,29 @@ export function cardHelpText(key) {
     poolPace: "helpPoolPace",
     poolRecommended: "helpPoolRecommended",
     billingCycle: "helpBillingCycle",
+    grokBotWeekly: "helpGrokBotWeekly",
   };
   return t(map[key] || key);
 }
 
 export function getDateLocale() {
   return local.locale === "it" ? "it-IT" : "en-US";
+}
+
+export function setRefreshButtonLoading(on) {
+  const refreshBtn = document.getElementById("refresh-btn");
+  if (!refreshBtn) return;
+  refreshBtn.disabled = on;
+  refreshBtn.classList.toggle("is-loading", on);
+  refreshBtn.setAttribute("aria-busy", on ? "true" : "false");
+  if (on) {
+    const spinner = document.createElement("span");
+    spinner.className = "refresh-spinner";
+    spinner.setAttribute("aria-hidden", "true");
+    refreshBtn.replaceChildren(spinner, document.createTextNode(t("refreshing")));
+    return;
+  }
+  refreshBtn.textContent = t("refresh");
 }
 
 export function applyStaticTranslations() {
@@ -109,8 +128,8 @@ export function applyStaticTranslations() {
   });
 
   const refreshBtn = document.getElementById("refresh-btn");
-  if (refreshBtn && !refreshBtn.disabled) {
-    refreshBtn.textContent = t("refresh");
+  if (refreshBtn) {
+    setRefreshButtonLoading(refreshBtn.classList.contains("is-loading"));
   }
 
   const langSelect = document.getElementById("lang-select");

@@ -1,5 +1,6 @@
 import { local, refs, ui } from "./core.js";
 import {
+  escapeHtml,
   eventSpendDollars,
   eventRequestCount,
   eventTokenCount,
@@ -11,7 +12,8 @@ import {
   toMillis,
   tokenField,
 } from "./format.js";
-import { getSortedEvents } from "./tables-events.js";
+import { t } from "./i18n.js";
+import { getSortedEvents, getSortedGrokBotEvents } from "./tables-events.js";
 
 function csvCell(v) {
   const s = String(v);
@@ -21,7 +23,7 @@ function csvCell(v) {
 }
 
 export function exportCsv() {
-  const events = getSortedEvents();
+  const events = local.activityTab === "grokBot" ? getSortedGrokBotEvents() : getSortedEvents();
   const spendCol = getActiveCurrency() === "eur" ? "SpendEUR" : "SpendUSD";
   const tokenCostCol = getActiveCurrency() === "eur" ? "TokenCostEUR" : "TokenCostUSD";
   const feeCol = getActiveCurrency() === "eur" ? "CursorFeeEUR" : "CursorFeeUSD";
@@ -52,7 +54,8 @@ export function exportCsv() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "cursor-usage-" + local.range + "-" + new Date().toISOString().slice(0, 10) + ".csv";
+  const archive = local.activityTab === "grokBot" ? "grok-bot-" : "";
+  a.download = "cursor-usage-" + archive + local.range + "-" + new Date().toISOString().slice(0, 10) + ".csv";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -63,23 +66,70 @@ export function applyTeamMemberConstraints() {
   // Reserved for plan-specific chart/table constraints.
 }
 
-export function showError(msg) {
-  if (msg) {
-    ui.errorBanner.textContent = msg;
-    ui.errorBanner.classList.remove("hidden");
-  } else {
-    ui.errorBanner.classList.add("hidden");
+function normalizeNotice(entry) {
+  if (!entry) return null;
+  if (typeof entry === "string") {
+    const message = entry.trim();
+    return message ? { message, detail: null } : null;
   }
+  if (typeof entry === "object" && typeof entry.message === "string") {
+    const message = entry.message.trim();
+    if (!message) return null;
+    const detail = typeof entry.detail === "string" && entry.detail.trim() ? entry.detail.trim() : null;
+    return { message, detail };
+  }
+  return null;
+}
+
+function bannerDetailButton(detail) {
+  if (!detail) return "";
+  return (
+    '<span class="card-help-wrap banner-help-wrap">' +
+      '<button type="button" class="card-help banner-help" aria-label="' +
+      escapeHtml(t("bannerDetailAria")) +
+      '">i</button>' +
+      '<span class="card-help-tooltip banner-help-tooltip" role="tooltip">' +
+      escapeHtml(detail) +
+      "</span>" +
+    "</span>"
+  );
+}
+
+function renderBanner(el, message, detail) {
+  if (!el) return;
+  if (!message) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+  el.innerHTML =
+    '<span class="banner-message">' + escapeHtml(message) + "</span>" + bannerDetailButton(detail);
+  el.classList.remove("hidden");
+}
+
+export function showError(message, detail) {
+  if (message && typeof message === "object" && message.message) {
+    renderBanner(ui.errorBanner, message.message, message.detail ?? null);
+    return;
+  }
+  const detailText = typeof detail === "string" && detail.trim() ? detail.trim() : null;
+  renderBanner(ui.errorBanner, message, detailText);
 }
 
 export function showWarnings(warnings) {
   if (!ui.warningBanner) return;
-  const list = Array.isArray(warnings) ? warnings.filter((w) => typeof w === "string" && w.length > 0) : [];
-  if (list.length > 0) {
-    ui.warningBanner.textContent = list.join("\n");
-    ui.warningBanner.classList.remove("hidden");
-  } else {
+  const list = Array.isArray(warnings)
+    ? warnings.map(normalizeNotice).filter((w) => w !== null)
+    : [];
+  if (list.length === 0) {
     ui.warningBanner.textContent = "";
     ui.warningBanner.classList.add("hidden");
+    return;
   }
+  const message = list.map((w) => w.message).join("\n");
+  const detailParts = list
+    .filter((w) => w.detail)
+    .map((w) => (list.length > 1 ? `${w.message}\n${w.detail}` : w.detail));
+  const detail = detailParts.length > 0 ? detailParts.join("\n\n") : null;
+  renderBanner(ui.warningBanner, message, detail);
 }

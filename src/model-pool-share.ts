@@ -69,15 +69,21 @@ export function buildPoolSpendIndex(
   return index;
 }
 
+function sumSpend(values: readonly number[]): number {
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
 function metricsForDaySpend(
   modelSpend: number,
-  poolSpend: number,
+  dayPoolSpend: number,
+  cyclePoolSpend: number,
   dailyPoolPercent: number,
   pool: ModelPoolKind,
 ): ModelPoolMetrics | null {
-  if (modelSpend <= 0 || poolSpend <= 0) return null;
-  const poolSharePercent = (modelSpend / poolSpend) * 100;
-  const quotaPointsPercent = (poolSharePercent * dailyPoolPercent) / 100;
+  if (modelSpend <= 0 || dayPoolSpend <= 0 || cyclePoolSpend <= 0) return null;
+  const poolSharePercent = (modelSpend / cyclePoolSpend) * 100;
+  const daySharePercent = (modelSpend / dayPoolSpend) * 100;
+  const quotaPointsPercent = (daySharePercent * dailyPoolPercent) / 100;
   return { pool, poolSharePercent, quotaPointsPercent };
 }
 
@@ -99,6 +105,7 @@ export function computeModelPoolMetricsForDay(
     return metricsForDaySpend(
       autoSpend,
       index.autoByDay[dayIndex] ?? 0,
+      sumSpend(index.autoByDay),
       dailyAutoPercent[dayIndex] ?? 0,
       "firstParty",
     );
@@ -107,6 +114,7 @@ export function computeModelPoolMetricsForDay(
     return metricsForDaySpend(
       apiSpend,
       index.apiByDay[dayIndex] ?? 0,
+      sumSpend(index.apiByDay),
       dailyApiPercent[dayIndex] ?? 0,
       "api",
     );
@@ -126,10 +134,10 @@ export function computeModelPoolMetricsForRange(
 
   let autoSpend = 0;
   let apiSpend = 0;
-  let autoPoolSpend = 0;
-  let apiPoolSpend = 0;
   let autoQuota = 0;
   let apiQuota = 0;
+  const cycleAutoPool = sumSpend(index.autoByDay);
+  const cycleApiPool = sumSpend(index.apiByDay);
 
   for (const dayIndex of dayIndices) {
     if (dayIndex < 0 || dayIndex >= index.autoByDay.length) continue;
@@ -140,8 +148,6 @@ export function computeModelPoolMetricsForRange(
 
     autoSpend += dayAuto;
     apiSpend += dayApi;
-    autoPoolSpend += poolAuto;
-    apiPoolSpend += poolApi;
 
     if (dayAuto > 0 && poolAuto > 0) {
       const share = (dayAuto / poolAuto) * 100;
@@ -154,17 +160,17 @@ export function computeModelPoolMetricsForRange(
   }
 
   // Prefer the pool with more included spend for this model in the range.
-  if (autoSpend >= apiSpend && autoSpend > 0 && autoPoolSpend > 0) {
+  if (autoSpend >= apiSpend && autoSpend > 0 && cycleAutoPool > 0) {
     return {
       pool: "firstParty",
-      poolSharePercent: (autoSpend / autoPoolSpend) * 100,
+      poolSharePercent: (autoSpend / cycleAutoPool) * 100,
       quotaPointsPercent: autoQuota,
     };
   }
-  if (apiSpend > 0 && apiPoolSpend > 0) {
+  if (apiSpend > 0 && cycleApiPool > 0) {
     return {
       pool: "api",
-      poolSharePercent: (apiSpend / apiPoolSpend) * 100,
+      poolSharePercent: (apiSpend / cycleApiPool) * 100,
       quotaPointsPercent: apiQuota,
     };
   }

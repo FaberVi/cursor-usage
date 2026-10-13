@@ -23,6 +23,18 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+.plan-x-sub {
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+.plan-x-sub a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.plan-x-sub a:hover {
+  text-decoration: underline;
+}
+
 .plan-banner-title {
   display: flex;
   align-items: center;

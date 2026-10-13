@@ -96,6 +96,25 @@ describe("computeModelPoolMetricsForDay", () => {
     });
   });
 
+  it("reports the day's model spend against the cycle pool total", () => {
+    const events: UsageEvent[] = [
+      event({ timestamp: day0 + 1000, model: "composer-2.5", spendCents: 150 }),
+      event({ timestamp: day0 + 2000, model: "default", spendCents: 50 }),
+      event({ timestamp: day1 + 1000, model: "default", spendCents: 300 }),
+      event({ timestamp: day0 + 3000, model: "claude-4.6-sonnet", spendCents: 80 }),
+      event({ timestamp: day1 + 2000, model: "claude-4.6-sonnet", spendCents: 20 }),
+    ];
+    const index = buildPoolSpendIndex(events, dayMs, day0);
+
+    const composer = computeModelPoolMetricsForDay("composer-2.5", 0, index, [4, 8, 0], [2, 1, 0]);
+    expect(composer?.poolSharePercent).toBeCloseTo(30, 5);
+    expect(composer?.quotaPointsPercent).toBeCloseTo(3, 5);
+
+    const soleDayModel = computeModelPoolMetricsForDay("claude-4.6-sonnet", 1, index, [4, 8, 0], [2, 1, 0]);
+    expect(soleDayModel?.poolSharePercent).toBeCloseTo(20, 5);
+    expect(soleDayModel?.quotaPointsPercent).toBeCloseTo(1, 5);
+  });
+
   it("returns null when model or pool spend is zero", () => {
     const index = buildPoolSpendIndex([], dayMs, day0);
     expect(computeModelPoolMetricsForDay("default", 0, index, [1], [1])).toBeNull();
@@ -125,6 +144,24 @@ describe("computeModelPoolMetricsForRange", () => {
     expect(metrics?.poolSharePercent).toBeCloseTo((140 / 200) * 100, 5);
     // day0: 50% of 2 = 1; day1: 90% of 4 = 3.6 → 4.6
     expect(metrics?.quotaPointsPercent).toBeCloseTo(4.6, 5);
+  });
+
+  it("uses billing-cycle pool total as denominator, not only the selected days", () => {
+    const events: UsageEvent[] = [
+      event({ timestamp: day0 + 1000, model: "claude-4.6-sonnet", spendCents: 40 }),
+      event({ timestamp: day0 + 2000, model: "gpt-5.3-codex", spendCents: 60 }),
+      event({ timestamp: day1 + 1000, model: "gpt-5.3-codex", spendCents: 100 }),
+    ];
+    const index = buildPoolSpendIndex(events, dayMs, day0);
+    const metrics = computeModelPoolMetricsForRange(
+      "claude-4.6-sonnet",
+      [0],
+      index,
+      [0, 0, 0],
+      [2, 4, 0],
+    );
+    expect(metrics?.poolSharePercent).toBeCloseTo(20, 5);
+    expect(metrics?.quotaPointsPercent).toBeCloseTo(0.8, 5);
   });
 });
 

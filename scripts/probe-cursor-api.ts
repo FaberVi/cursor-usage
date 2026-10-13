@@ -1,5 +1,8 @@
 /**
  * One-off probe: read local auth and fetch Cursor API responses for fixture discovery.
+ *
+ * After migrating to The X Subscription, save redacted output from stripe, usage-summary,
+ * and get-sand-usage-status to update test/fixtures and membership slugs in plan-labels.ts.
  */
 import { readCursorAuthValuesFromDb } from "../src/cursor-api";
 import { join } from "path";
@@ -61,6 +64,20 @@ const stripeRes = await fetch("https://cursor.com/api/auth/stripe", { headers })
 const stripe = stripeRes.ok ? await stripeRes.json() : { error: stripeRes.status };
 console.log("\n=== /api/auth/stripe ===");
 console.log(JSON.stringify(redact(stripe), null, 2));
+
+const summaryRes = await fetch("https://cursor.com/api/usage-summary", { headers });
+const summary = summaryRes.ok ? await summaryRes.json() : { error: summaryRes.status };
+console.log("\n=== /api/usage-summary ===");
+console.log(JSON.stringify(redact(summary), null, 2));
+
+const sandRes = await fetch("https://cursor.com/api/dashboard/get-sand-usage-status", {
+  method: "POST",
+  headers,
+  body: "{}",
+});
+const sand = sandRes.ok ? await sandRes.json() : { error: sandRes.status };
+console.log("\n=== /api/dashboard/get-sand-usage-status ===");
+console.log(JSON.stringify(redact(sand), null, 2));
 
 const usageRes = await fetch(`https://cursor.com/api/usage?user=${userId}`, { headers });
 const usage = usageRes.ok ? await usageRes.json() : { error: usageRes.status };

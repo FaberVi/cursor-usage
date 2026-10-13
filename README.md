@@ -2,7 +2,7 @@
 
 Community-maintained fork of [cursor-metrics](https://github.com/wrick17/cursor-metrics). See Cursor usage in your status bar: included requests, Auto/API pool usage, and on-demand spend, live while you work. Click the status bar item to open a full dashboard inside your editor.
 
-**Current release:** `1.0.3` — Grok Bot weekly allowance, unified included-pool summary card, faster manual refresh with background activity sync, EN/IT dashboard copy, and tooling updates (requires **Cursor / VS Code 1.128+**).
+**Current release:** `1.0.4` — October 2026 pricing catalog, day-level pool share against the billing-cycle bucket, and usage-history sync that no longer drops a day's tokens or keeps a false partial-sync warning (requires **Cursor / VS Code 1.128+**).
 
 ![Cursor Usage extension tooltip](media/extensions-tooltip.png)
 
@@ -34,7 +34,7 @@ Community-maintained fork of [cursor-metrics](https://github.com/wrick17/cursor-
   - Live Auto/API bars with **target usage** (even spread until reset) vs actual consumption and total pool %.
   - **Projected 100%** — estimated depletion date at the current average rate since cycle start.
   - **Daily budget** — allowance bar, residual or overspend vs even spread, and midnight UTC reset countdown.
-- **Grok Bot (weekly)** summary card when your plan includes it (separate from monthly Auto/API pools).
+- **Weekly Grok pool** summary card when your plan exposes it (shared Grok allowance; separate from monthly Auto/API pools).
 - **Pool Usage section** (when pool data is available):
   - Cumulative Auto/API % line chart for the billing cycle.
   - **Daily balance** chart — positive bars = budget left that day; negative = overspend vs even spread.
@@ -80,7 +80,19 @@ All pool pacing views are **indicative** — they assume an even spread of the 1
 
 Daily pool percentages are derived from included usage events (first-party catalog models such as Auto/`default`, Composer 2.5, and Cursor Grok → First-party pool; other models → API pool) and calibrated against the live totals from Cursor's usage API. **Grok Bot** rows (`grok-bot-default`, `grok-bot-automation`, `grok-bot-cua`) use a separate weekly allowance and are excluded from monthly pool pacing in this extension.
 
-When your plan includes Grok Bot, the dashboard summary shows a **Grok Bot (weekly)** card from `POST /api/dashboard/get-sand-usage-status` (same meter as the Cursor spending UI). The status bar tooltip includes the weekly percentage when available (Italian UI: *quota settimanale consumata*).
+When your plan includes a weekly Grok allowance, the dashboard shows a **Weekly Grok pool** card from `POST /api/dashboard/get-sand-usage-status` (same meter as the Cursor spending UI). The status bar tooltip includes the weekly percentage when available (Italian UI: *quota settimanale consumata*).
+
+## The X Subscription
+
+[The X Subscription](https://cursor.com/help/the-x-subscription/overview) bundles Grok, Grok Bot, Cursor, and X Premium benefits in one plan (optional migration for existing Cursor / SuperGrok / X Premium customers via [cursor.com/unify](https://cursor.com/unify)). **X Premium alone does not include Cursor** until you switch to The X Subscription.
+
+What this extension reflects today:
+
+- **Monthly Auto / API pools** — still from Cursor `usage-summary` (billing-cycle pacing, charts, status bar).
+- **Weekly Grok pool** — from `get-sand-usage-status` when Cursor exposes it; copy in the dashboard describes the shared weekly allowance described in Cursor’s help (Grok apps, Grok Bot, Grok models in Cursor). This extension does **not** read X billing, prepaid balance on grok.com, or third-party model credits.
+- **Plan banner** — when Cursor reports an X Subscription–style `membershipType` slug (e.g. hypothetical `x_premium`), the dashboard shows **The X Subscription** labeling and a link to Cursor help. Slugs are best-effort until verified with `bun scripts/probe-cursor-api.ts` on a migrated account.
+
+Third-party models (Claude, GPT, etc.) in Cursor are **not** part of the included weekly Grok pool on The X Subscription; they bill at API list prices through prepaid/top-up credits per [Cursor help](https://cursor.com/help/the-x-subscription/overview).
 
 ## Privacy and behavior
 
@@ -160,7 +172,7 @@ cursor --install-extension build/cursor-usage-<version>.vsix
 code --install-extension build/cursor-usage-<version>.vsix
 ```
 
-Replace `<version>` with the value in `package.json` (e.g. `1.0.3`).
+Replace `<version>` with the value in `package.json` (e.g. `1.0.4`).
 
 ### Publish to marketplaces
 

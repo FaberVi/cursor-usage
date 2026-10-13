@@ -12,7 +12,7 @@ export const CARD_HELP = {
   billingCycle:
     "Days remaining in your current billing cycle and how much of the cycle has elapsed. Pool quotas and on-demand limits reset on the date shown.",
   grokBotWeekly:
-    "Grok Bot included allowance for the current weekly period. Separate from Cursor Models and API monthly pools; overflow after 100% uses shared on-demand if enabled.",
+    "Weekly included Grok usage shared across Grok, Grok Bot, and Grok models in Cursor (The X Subscription). Resets every week and is separate from monthly First-party / API pools. Third-party models in Cursor are not included. Details: https://cursor.com/help/the-x-subscription/overview",
 } as const;
 
 export type CardHelpKey = keyof typeof CARD_HELP;

@@ -48,7 +48,13 @@ export type StatusBarContext = {
   lastEvents: UsageEvent[] | null;
   lastDailySpend: DailySpendRow[] | null;
   getDashboardEventFilter: () => Parameters<typeof filterDashboardEvents>[1];
+  /** True while updateUsage (including background event sync) is in flight. */
+  refreshing: boolean;
 };
+
+function statusBarLeadingIcon(refreshing: boolean): string {
+  return refreshing ? "$(loading~spin)" : "$(pulse)";
+}
 
 function buildModelBreakdownTableMarkdown(
   rows: Array<{ model: string; totalTokens: number; requests: number; spendCents: number }>,
@@ -113,11 +119,12 @@ export function updateStatusBar(data: UsagePayload, ctx: StatusBarContext): void
 
   const quotaExhausted = isIncludedQuotaExhausted(data, showPremiumRequests);
   const onDemandVisible = isOnDemandVisible(onDemand);
+  const icon = statusBarLeadingIcon(ctx.refreshing);
 
   if (minimalMode && quotaExhausted && onDemandVisible) {
-    ctx.statusBarItem.text = `$(pulse) ${formatOnDemandStatusBar(onDemand, currency, locale)}`;
+    ctx.statusBarItem.text = `${icon} ${formatOnDemandStatusBar(onDemand, currency, locale)}`;
   } else {
-    ctx.statusBarItem.text = `$(pulse) ${formatStatusBarUsageText(data, {
+    ctx.statusBarItem.text = `${icon} ${formatStatusBarUsageText(data, {
       onDemandVisible,
       showPremiumRequests,
       currency,

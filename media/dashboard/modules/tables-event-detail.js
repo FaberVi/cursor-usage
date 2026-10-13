@@ -19,7 +19,7 @@ import { t } from "./i18n.js";
 import { translateVariantLabel } from "./pricing-catalog-i18n.js";
 import { getEventPricingEstimate } from "./pricing.js";
 import { formatRateUsd } from "../../../src/model-pricing.ts";
-import { renderTable } from "./tables-events.js";
+import { renderGrokBotTable, renderTable } from "./tables-events.js";
 
 function renderTokenBreakdown(event) {
   const input = tokenField(event, "inputTokens");
@@ -188,6 +188,7 @@ export function showEventDetail(event) {
   setSelectedEventKey(event.eventKey ?? null);
   refs.selectedConversationId = null;
   renderTable();
+  renderGrokBotTable();
 
   const maxBadge = event.maxMode ? ' <span class="max-badge">MAX</span>' : "";
   ui.eventDetailTitle.innerHTML = escapeHtml(formatModelLabel(event.model)) + maxBadge;
@@ -221,4 +222,5 @@ export function closeEventDetail() {
   ui.eventDetailOverlay.setAttribute("aria-hidden", "true");
   ui.eventDetailClose?.setAttribute("tabindex", "-1");
   renderTable();
+  renderGrokBotTable();
 }

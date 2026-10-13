@@ -87,6 +87,13 @@ export function renderPlanBanner() {
           : "") +
       "</div>" +
       '<span class="plan-caption muted">' + escapeHtml(formatPlanPriceText(planInfo.displayName)) + "</span>" +
+      (planInfo.billingProgram === "x_subscription"
+        ? '<p class="plan-x-sub muted small"><a href="https://cursor.com/help/the-x-subscription/overview" target="_blank" rel="noopener noreferrer">' +
+            escapeHtml(t("planXSubscriptionLink")) +
+          "</a> · " +
+          escapeHtml(t("planXSubscriptionHint")) +
+          "</p>"
+        : "") +
     "</div>";
 }
 

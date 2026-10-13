@@ -27,6 +27,7 @@ type RefreshFn = (opts?: UpdateUsageOptions) => Promise<void>;
 type StateProvider = () => DashboardState | null;
 type LocaleChangeFn = (locale: DashboardLocale) => void;
 type PreviewChangeFn = (enabled: boolean) => void | Promise<void>;
+type RefreshBusyFn = () => boolean;
 type ConversationMessages = Awaited<ReturnType<typeof loadConversationMessages>>;
 
 type DashboardEventFilter = {
@@ -59,9 +60,13 @@ export class DashboardPanel {
     getState: StateProvider,
     onLocaleChange?: LocaleChangeFn,
     onPreviewChange?: PreviewChangeFn,
+    getRefreshBusy?: RefreshBusyFn,
   ): DashboardPanel {
   if (DashboardPanel.currentPanel) {
-    DashboardPanel.currentPanel.updateCallbacks(onLocaleChange, onPreviewChange);
+    DashboardPanel.currentPanel.updateCallbacks(onLocaleChange, onPreviewChange, getRefreshBusy);
+    if (getRefreshBusy?.()) {
+      DashboardPanel.currentPanel.postLoading(true);
+    }
     DashboardPanel.currentPanel.panel.reveal(vscode.ViewColumn.Active);
     return DashboardPanel.currentPanel;
   }
@@ -77,7 +82,15 @@ export class DashboardPanel {
       },
     );
 
-    DashboardPanel.currentPanel = new DashboardPanel(panel, context, onRefresh, getState, onLocaleChange, onPreviewChange);
+    DashboardPanel.currentPanel = new DashboardPanel(
+      panel,
+      context,
+      onRefresh,
+      getState,
+      onLocaleChange,
+      onPreviewChange,
+      getRefreshBusy,
+    );
     return DashboardPanel.currentPanel;
   }
 
@@ -85,6 +98,7 @@ export class DashboardPanel {
   private readonly context: vscode.ExtensionContext;
   private onLocaleChange?: LocaleChangeFn;
   private onPreviewChange?: PreviewChangeFn;
+  private getRefreshBusy?: RefreshBusyFn;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly getState: StateProvider;
   private dashboardPrefs: DashboardEventFilter = {
@@ -104,12 +118,14 @@ export class DashboardPanel {
     getState: StateProvider,
     onLocaleChange?: LocaleChangeFn,
     onPreviewChange?: PreviewChangeFn,
+    getRefreshBusy?: RefreshBusyFn,
   ) {
     this.panel = panel;
     this.context = context;
     this.getState = getState;
     this.onLocaleChange = onLocaleChange;
     this.onPreviewChange = onPreviewChange;
+    this.getRefreshBusy = getRefreshBusy;
     this.panel.webview.html = this.renderHtml(panel.webview, context.extensionUri);
 
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
@@ -144,6 +160,9 @@ export class DashboardPanel {
           const previewEnabled = this.context.globalState.get<boolean>(CONVERSATION_PREVIEW_KEY) === true;
           this.panel.webview.postMessage({ type: "initPreview", enabled: previewEnabled });
           if (state) this.postState(state);
+          if (this.getRefreshBusy?.()) {
+            this.postLoading(true);
+          }
         } else if (msg.type === "setLocale" && isDashboardLocale(msg.locale)) {
           await this.context.globalState.update(DASHBOARD_LOCALE_KEY, msg.locale);
           this.onLocaleChange?.(msg.locale);
@@ -219,12 +238,7 @@ export class DashboardPanel {
             }
           }
         } else if (msg.type === "refresh") {
-          this.postLoading(true);
-          try {
-            await onRefresh({ force: true });
-          } finally {
-            this.postLoading(false);
-          }
+          await onRefresh({ force: true });
         } else if (msg.type === "refreshPricingCatalog") {
           this.panel.webview.postMessage({ type: "pricingSyncLoading", on: true });
           try {
@@ -295,9 +309,14 @@ export class DashboardPanel {
     });
   }
 
-  updateCallbacks(onLocaleChange?: LocaleChangeFn, onPreviewChange?: PreviewChangeFn): void {
+  updateCallbacks(
+    onLocaleChange?: LocaleChangeFn,
+    onPreviewChange?: PreviewChangeFn,
+    getRefreshBusy?: RefreshBusyFn,
+  ): void {
     if (onLocaleChange) this.onLocaleChange = onLocaleChange;
     if (onPreviewChange) this.onPreviewChange = onPreviewChange;
+    if (getRefreshBusy) this.getRefreshBusy = getRefreshBusy;
   }
 
   private dispose(): void {

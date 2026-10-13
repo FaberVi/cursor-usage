@@ -4,6 +4,27 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Plan labels for hypothetical The X Subscription membership slugs (`x_plus`, `x_premium`, …) with `billingProgram: x_subscription` and dashboard plan-banner link to Cursor help.
+
+### Changed
+- Weekly Grok card, pricing pool copy, and card help describe the **shared weekly Grok pool** (The X Subscription) vs monthly First-party / API pools; status bar tooltip title renamed; third-party models noted as excluded from that pool.
+- README: new **The X Subscription** section (limits of this extension, unify link).
+
+## [1.0.4] - 2026-10-12
+
+### Added
+- Pricing catalog entries for Claude Haiku 5.5, Claude Sonnet 5.5, GLM 5.3, and GLM 5.3 Flash (`lastUpdated` `2026-10-12`).
+
+### Changed
+- Claude Sonnet 5 is hidden by default. Claude Opus 5.5 notes include the higher US-only endpoint rates.
+- Chart tooltip “% of pool” for one day is that model’s included spend that day divided by the billing-cycle total of its bucket (First-party or API). Quota points are unchanged.
+- Dev dependencies: `@types/node` 26.6.5, Playwright 1.64, Puppeteer 25.13.
+
+### Fixed
+- A short or empty usage-events page is no longer treated as a complete sync when `totalUsageEventsCount` says more events remain. The 120-day archive is not replaced by a shorter snapshot unless that total is fully covered, so a later refresh does not shrink a day’s stored tokens.
+- The partial event-sync warning no longer stays on after the quick page-capped fetch. One background history sync runs when that fetch is short; the warning remains only if the longer sync still hits the page cap.
+
 ## [1.0.0] - 2026-09-04
 
 First stable community release after three corrective audit waves: resilient API fetch, team-aware usage routing, page-wise conversation DB reads, dashboard i18n/UX hardening, and CI.

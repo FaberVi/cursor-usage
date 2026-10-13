@@ -16,6 +16,7 @@ import {
   refreshStatusBarFromLastData,
   scheduleRefresh,
   showDetails,
+  isUsageRefreshBusy,
   updateUsage,
 } from "./extension-refresh";
 
@@ -64,6 +65,7 @@ export function activate(context: vscode.ExtensionContext) {
       getDashboardState,
       refreshStatusBarFromLastData,
       handleConversationPreviewChange,
+      isUsageRefreshBusy,
     );
     DashboardPanel.currentPanel?.postState(getDashboardState());
   });

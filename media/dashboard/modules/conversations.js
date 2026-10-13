@@ -14,22 +14,24 @@ import {
 } from "../../../src/conversation-aggregate.ts";
 import {
   escapeHtml,
-  eventSpendDollars,
   formatDateTime,
   formatModelLabel,
   formatPerPage,
   formatRequests,
   formatCents,
   formatTokens,
-  eventRequestCount,
-  eventTokenCount,
   getDurationCutoff,
   rangeNow,
 } from "./format.js";
 import { t } from "./i18n.js";
-import { renderTable, showEventDetail, getSortedEvents, findEventByKey } from "./tables.js";
+import { renderTable, renderGrokBotTable, showEventDetail, findVisibleEvent } from "./tables.js";
+import {
+  applyConversationMessages,
+  closeConversationDetail,
+  showConversationDetail,
+} from "./conversation-detail.js";
 
-const NO_CONVERSATION_KEY = "__none__";
+export const NO_CONVERSATION_KEY = "__none__";
 
 export function getSortedConversations() {
   if (!refs.state) return [];
@@ -170,111 +172,8 @@ export function updatePreviewStatus(msg) {
   }
 }
 
-export function applyConversationMessages(conversationId, messages, error) {
-  if (!ui.eventDetailBody || !conversationId) return;
-  const idKey = conversationId;
-  if (refs.selectedConversationId !== idKey) return;
+export { applyConversationMessages, closeConversationDetail, showConversationDetail };
 
-  const container = ui.eventDetailBody.querySelector("#conversation-messages-list");
-  const section = ui.eventDetailBody.querySelector("#conversation-messages-section");
-  if (!container || !section) return;
-
-  section.querySelector(".conv-messages-loading")?.remove();
-
-  if (error) {
-    container.innerHTML = '<p class="muted small">' + escapeHtml(t("convMessagesError")) + "</p>";
-    return;
-  }
-
-  if (!messages?.length) {
-    container.innerHTML = '<p class="muted small">' + escapeHtml(t("convMessagesEmpty")) + "</p>";
-    return;
-  }
-
-  container.innerHTML = messages.map((msg) => {
-    const roleLabel = msg.role === "user" ? t("msgRoleUser") : t("msgRoleAssistant");
-    const time = msg.createdAt ? formatDateTime(msg.createdAt) : "";
-    const modelLabel = msg.model ? formatModelLabel(msg.model) : "";
-    const modelTitle = msg.modelEstimated ? t("msgModelEstimated") : t("colModel");
-    const modelHtml = modelLabel
-      ? '<span class="conv-message-model' + (msg.modelEstimated ? " estimated" : "") + '" title="' + escapeHtml(modelTitle) + '">' + escapeHtml(modelLabel) + "</span>"
-      : "";
-    return '<article class="conv-message conv-message-' + escapeHtml(msg.role) + '">' +
-      '<header class="conv-message-header"><div class="conv-message-meta"><strong>' + escapeHtml(roleLabel) + "</strong>" + modelHtml + "</div>" +
-      (time ? '<span class="muted small">' + escapeHtml(time) + "</span>" : "") +
-      "</header>" +
-      '<div class="conv-message-text">' + escapeHtml(msg.text) + "</div>" +
-    "</article>";
-  }).join("");
-}
-
-export function showConversationDetail(row) {
-  if (!ui.eventDetailOverlay || !ui.eventDetailBody || !row) return;
-  refs.selectedConversationId = row.conversationId ?? NO_CONVERSATION_KEY;
-  refs.selectedEventKey = null;
-  renderConversationsTable();
-
-  ui.eventDetailTitle.textContent = row.label;
-  const rangeText = formatDateTime(row.firstTimestamp) + " \u2013 " + formatDateTime(row.lastTimestamp);
-  const idLine = row.conversationId
-    ? abbreviateConversationId(row.conversationId)
-    : t("noConversation");
-  ui.eventDetailSubtitle.textContent = idLine + " \u00b7 " + rangeText;
-
-  const eventRows = row.events.map((event) => {
-    const color = colorForModel(event.model || "default");
-    const eventKey = event.eventKey ?? "";
-    return '<tr class="conversation-event-row" data-detail-event-key="' + escapeHtml(eventKey) + '" style="box-shadow:inset 3px 0 0 ' + color + ';">' +
-      "<td>" + formatDateTime(event.timestamp) + "</td>" +
-      "<td>" + escapeHtml(formatModelLabel(event.model)) + "</td>" +
-      "<td>" + escapeHtml(event.kind) + "</td>" +
-      '<td class="num">' + formatTokens(eventTokenCount(event)) + "</td>" +
-      '<td class="num">' + formatRequests(eventRequestCount(event)) + "</td>" +
-      '<td class="num">' + formatCents(Math.round(eventSpendDollars(event) * 100)) + "</td>" +
-    "</tr>";
-  }).join("");
-
-  const messagesSection = row.conversationId
-    ? '<div class="event-detail-section" id="conversation-messages-section"><h3>' + escapeHtml(t("convMessages")) +
-      '</h3><p class="muted small conv-messages-loading">' + escapeHtml(t("convMessagesLoading")) +
-      '</p><div id="conversation-messages-list" class="conversation-messages-list"></div></div>'
-    : "";
-
-  ui.eventDetailBody.innerHTML =
-    '<div class="event-detail-grid">' +
-      '<div class="event-detail-stat"><span class="label">' + escapeHtml(t("convFirstActive")) + '</span><span class="value">' + formatDateTime(row.firstTimestamp) + "</span></div>" +
-      '<div class="event-detail-stat"><span class="label">' + escapeHtml(t("convLastActive")) + '</span><span class="value">' + formatDateTime(row.lastTimestamp) + "</span></div>" +
-      '<div class="event-detail-stat"><span class="label">' + escapeHtml(t("colCalls")) + '</span><span class="value">' + row.eventCount.toLocaleString() + "</span></div>" +
-      '<div class="event-detail-stat"><span class="label">' + escapeHtml(t("colTokens")) + '</span><span class="value">' + formatTokens(row.totalTokens) + "</span></div>" +
-      '<div class="event-detail-stat"><span class="label">' + escapeHtml(t("colRequests")) + '</span><span class="value">' + formatRequests(row.requests) + "</span></div>" +
-      '<div class="event-detail-stat"><span class="label">' + escapeHtml(t("colSpend")) + '</span><span class="value">' + formatCents(row.spendCents) + "</span></div>" +
-    "</div>" +
-    '<div class="event-detail-section"><h3>' + escapeHtml(t("colModels")) + "</h3><p>" + escapeHtml(row.modelsLabel) + "</p></div>" +
-    messagesSection +
-    '<div class="event-detail-section"><h3>' + escapeHtml(t("convEventList")) + '</h3><p class="muted small">' + escapeHtml(t("convClickEvent")) + "</p>" +
-    '<table class="detail-events-table"><thead><tr>' +
-      "<th>" + escapeHtml(t("colDate")) + "</th>" +
-      "<th>" + escapeHtml(t("colModel")) + "</th>" +
-      "<th>" + escapeHtml(t("colType")) + "</th>" +
-      "<th class=\"num\">" + escapeHtml(t("colTokens")) + "</th>" +
-      "<th class=\"num\">" + escapeHtml(t("colRequests")) + "</th>" +
-      "<th class=\"num\">" + escapeHtml(t("colSpend")) + "</th>" +
-    "</tr></thead><tbody>" + eventRows + "</tbody></table></div>";
-
-  ui.eventDetailOverlay.classList.remove("hidden");
-  ui.eventDetailOverlay.setAttribute("aria-hidden", "false");
-  ui.eventDetailClose?.removeAttribute("tabindex");
-  ui.eventDetailClose?.focus();
-
-  if (row.conversationId) {
-    vscode.postMessage({ type: "getConversationMessages", conversationId: row.conversationId });
-  }
-}
-
-export function closeConversationDetail() {
-  refs.selectedConversationId = null;
-  renderConversationsTable();
-}
 
 export function syncDashboardPrefs() {
   vscode.postMessage({
@@ -286,10 +185,14 @@ export function syncDashboardPrefs() {
 
 export function updateArchiveNote() {
   if (!ui.archiveNote || !refs.state) return;
-  const count = refs.state.storedEventCount || 0;
+  const grokCount = refs.state.grokBotStoredEventCount || 0;
+  const usageCount = Math.max(0, (refs.state.storedEventCount || 0) - grokCount);
+  const grokArchive = local.activityTab === "grokBot";
+  const count = grokArchive ? grokCount : usageCount;
   const parts = [];
   if (count > 0) {
-    parts.push(t("archiveNote").replace("{count}", count.toLocaleString()));
+    const template = grokArchive ? t("archiveGrokNote") : t("archiveNote");
+    parts.push(template.replace("{count}", count.toLocaleString()));
   }
   if (refs.state.eventsComplete === false) {
     parts.push(t("archivePartialSync"));
@@ -302,31 +205,42 @@ export function updateArchiveNote() {
   }
 }
 
+function activitySectionTitle() {
+  if (local.activityTab === "grokBot") return t("sectionGrokBot");
+  if (local.activityTab === "conversations") return t("sectionConversations");
+  return t("sectionEvents");
+}
+
+function activityToggleLabel() {
+  if (local.activityTab === "grokBot") return t("toggleGrokBot");
+  if (local.activityTab === "conversations") return t("toggleConversations");
+  return t("toggleEvents");
+}
+
 export function applyActivityTab() {
-  const isEvents = local.activityTab === "events";
+  const tab = local.activityTab;
   ui.activityTabs?.forEach((btn) => {
-    const active = btn.dataset.activityTab === local.activityTab;
+    const active = btn.dataset.activityTab === tab;
     btn.classList.toggle("active", active);
     btn.setAttribute("aria-selected", active ? "true" : "false");
   });
-  ui.eventsPanel?.classList.toggle("hidden", !isEvents);
-  ui.conversationsPanel?.classList.toggle("hidden", isEvents);
-  ui.exportBtn?.classList.toggle("hidden", !isEvents);
-  ui.conversationPreviewBtn?.classList.toggle("hidden", isEvents);
-  ui.previewStatus?.classList.toggle("hidden", isEvents || !local.conversationPreview);
+  ui.eventsPanel?.classList.toggle("hidden", tab !== "events");
+  ui.grokEventsPanel?.classList.toggle("hidden", tab !== "grokBot");
+  ui.conversationsPanel?.classList.toggle("hidden", tab !== "conversations");
+  ui.exportBtn?.classList.toggle("hidden", tab === "conversations");
+  ui.conversationPreviewBtn?.classList.toggle("hidden", tab !== "conversations");
+  ui.previewStatus?.classList.toggle("hidden", tab !== "conversations" || !local.conversationPreview);
   if (ui.conversationPreviewBtn) {
     ui.conversationPreviewBtn.classList.toggle("active", local.conversationPreview);
     ui.conversationPreviewBtn.setAttribute("aria-pressed", local.conversationPreview ? "true" : "false");
   }
   if (ui.activitySectionTitle) {
-    ui.activitySectionTitle.textContent = isEvents ? t("sectionEvents") : t("sectionConversations");
+    ui.activitySectionTitle.textContent = activitySectionTitle();
   }
   if (ui.activitySectionToggle) {
-    ui.activitySectionToggle.setAttribute(
-      "aria-label",
-      isEvents ? t("toggleEvents") : t("toggleConversations"),
-    );
+    ui.activitySectionToggle.setAttribute("aria-label", activityToggleLabel());
   }
+  updateArchiveNote();
 }
 
 export function bindConversationHandlers(vscode) {
@@ -338,6 +252,7 @@ export function bindConversationHandlers(vscode) {
       persistLocal();
       applyActivityTab();
       if (next === "conversations") renderConversationsTable();
+      else if (next === "grokBot") renderGrokBotTable();
       else renderTable();
     });
   });
@@ -363,7 +278,7 @@ export function bindConversationHandlers(vscode) {
     const tr = e.target.closest("tr[data-detail-event-key]");
     if (!tr) return;
     const eventKey = tr.dataset.detailEventKey;
-    const event = findEventByKey(getSortedEvents(), eventKey);
+    const event = findVisibleEvent(eventKey);
     if (!event) return;
     showEventDetail(event);
   });
@@ -408,3 +323,4 @@ export function bindConversationHandlers(vscode) {
     renderConversationsTable();
   });
 }
+

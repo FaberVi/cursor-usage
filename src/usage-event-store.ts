@@ -167,15 +167,38 @@ export class UsageEventStore {
   }
 
   /** Replace all stored events in [sinceMs, ∞) with the API snapshot (manual refresh). */
-  syncEventsFromApi(events: UsageEvent[], sinceMs: number, opts?: { allowEmpty?: boolean }): number {
+  syncEventsFromApi(
+    events: UsageEvent[],
+    sinceMs: number,
+    opts?: { allowEmpty?: boolean; totalCovered?: boolean },
+  ): number {
     if (!this.db) return 0;
     if (events.length === 0 && !opts?.allowEmpty) return 0;
+    const totalCovered = opts?.totalCovered === true;
+    const inWindow = this.countEventsSince(sinceMs);
+    if (events.length < inWindow && !totalCovered) {
+      if (events.length === 0) return 0;
+      return this.insertEvents(events, "INSERT OR REPLACE");
+    }
     this.db.run("DELETE FROM usage_events WHERE timestamp >= ?", [sinceMs]);
     if (events.length === 0) {
       this.schedulePersist();
       return 0;
     }
     return this.insertEvents(events, "INSERT OR REPLACE");
+  }
+
+  private countEventsSince(sinceMs: number): number {
+    if (!this.db) return 0;
+    const stmt = this.db.prepare("SELECT COUNT(*) AS count FROM usage_events WHERE timestamp >= ?");
+    stmt.bind([sinceMs]);
+    let count = 0;
+    if (stmt.step()) {
+      const row = stmt.getAsObject() as { count?: number };
+      count = typeof row.count === "number" ? row.count : 0;
+    }
+    stmt.free();
+    return count;
   }
 
   private insertEvents(
@@ -250,8 +273,19 @@ export class UsageEventStore {
   }
 
   getEventCount(): number {
+    return this.countEvents("SELECT COUNT(*) AS count FROM usage_events");
+  }
+
+  /** Rows billed to the weekly Grok Bot allowance (model id prefix `grok-bot`). */
+  getGrokBotEventCount(): number {
+    return this.countEvents(
+      "SELECT COUNT(*) AS count FROM usage_events WHERE lower(model) LIKE 'grok-bot%'",
+    );
+  }
+
+  private countEvents(sql: string): number {
     if (!this.db) return 0;
-    const stmt = this.db.prepare("SELECT COUNT(*) AS count FROM usage_events");
+    const stmt = this.db.prepare(sql);
     let count = 0;
     if (stmt.step()) {
       const row = stmt.getAsObject() as { count?: number };

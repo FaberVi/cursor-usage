@@ -16,6 +16,7 @@ mock.module("vscode", () => ({
     createStatusBarItem: () => ({ text: "", show: () => {}, hide: () => {}, dispose: () => {} }),
     onDidChangeWindowState: () => ({ dispose: () => {} }),
     onDidChangeActiveColorTheme: () => ({ dispose: () => {} }),
+    activeColorTheme: { kind: 2 },
   },
   commands: {
     executeCommand: async () => undefined,
@@ -25,4 +26,11 @@ mock.module("vscode", () => ({
   StatusBarAlignment: { Left: 1, Right: 2 },
   ProgressLocation: { Notification: 15 },
   env: { language: "en" },
+  ColorThemeKind: { Light: 1, Dark: 2, HighContrast: 3, HighContrastLight: 4 },
+  MarkdownString: class MarkdownString {
+    isTrusted = { enabledCommands: [] as string[] };
+    supportThemeIcons = false;
+    supportHtml = false;
+    appendMarkdown() {}
+  },
 }));

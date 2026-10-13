@@ -15,7 +15,7 @@ const MESSAGES = {
     includedPool: "Included pool",
     poolFirstParty: "First-party models",
     poolApi: "API",
-    grokBotWeekly: "Grok Bot (weekly)",
+    grokBotWeekly: "Weekly Grok pool",
     grokBotWeeklyUsed: "{pct}% weekly allowance used",
     grokBotWeeklyResetUnknown: "Resets weekly",
     totalUsed: "{pct}% total used",
@@ -57,6 +57,8 @@ const MESSAGES = {
     pricingSyncSuccess: "Pricing catalog updated ({updated} models refreshed, {added} new).",
     pricingSyncFailed: "Pricing catalog sync failed: {error}",
     fetchUsageFailed: "Could not fetch usage data",
+    errorDetailUsageDataUnavailable:
+      "Cursor could not load usage (sign-in, account setup, or API unavailable). See the Output panel “Cursor Usage” for request logs.",
     statusBarUsage: "Usage",
   },
   it: {
@@ -68,7 +70,7 @@ const MESSAGES = {
     includedPool: "Pool incluso",
     poolFirstParty: "Modelli first-party",
     poolApi: "API",
-    grokBotWeekly: "Grok Bot (settimanale)",
+    grokBotWeekly: "Pool Grok settimanale",
     grokBotWeeklyUsed: "{pct}% quota settimanale consumata",
     grokBotWeeklyResetUnknown: "Reset settimanale",
     totalUsed: "{pct}% totale usato",
@@ -110,6 +112,8 @@ const MESSAGES = {
     pricingSyncSuccess: "Catalogo prezzi aggiornato ({updated} modelli aggiornati, {added} nuovi).",
     pricingSyncFailed: "Sincronizzazione catalogo prezzi non riuscita: {error}",
     fetchUsageFailed: "Impossibile recuperare i dati di utilizzo",
+    errorDetailUsageDataUnavailable:
+      "Cursor non ha potuto caricare l'utilizzo (accesso, configurazione account o API non disponibile). Controlla il pannello Output “Cursor Usage” per i log delle richieste.",
     statusBarUsage: "Utilizzo",
   },
 } as const;

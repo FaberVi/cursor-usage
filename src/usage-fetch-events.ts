@@ -162,8 +162,14 @@ export type FetchUsageEventsOptions = {
 
 export type FetchUsageEventsResult = {
   events: UsageEvent[];
-  /** True when the full lookback window was retrieved without auth/HTTP failure or page-cap truncation. */
+  /** True when the lookback window was retrieved without auth/HTTP failure or page-cap truncation. */
   complete: boolean;
+  /** True when the fetch stopped early and more events may remain. */
+  truncated: boolean;
+  /** True when the raw page length covers `totalUsageEventsCount` from the first page. */
+  totalCovered: boolean;
+  /** Human-readable reason when `complete` is false or the fetch could not run. */
+  failureReason: string | null;
 };
 
 export async function fetchUsageEvents(opts: FetchUsageEventsOptions = {}): Promise<FetchUsageEventsResult> {
@@ -172,7 +178,13 @@ export async function fetchUsageEvents(opts: FetchUsageEventsOptions = {}): Prom
   const auth = await getCursorToken();
   if (!auth) {
     apiLog("Failed to get auth token for events");
-    return { events: [], complete: false };
+    return {
+      events: [],
+      complete: false,
+      truncated: false,
+      totalCovered: false,
+      failureReason: "Cursor authentication token not available",
+    };
   }
 
   const headers = cursorHeaders(auth.sessionToken);
@@ -187,6 +199,11 @@ export async function fetchUsageEvents(opts: FetchUsageEventsOptions = {}): Prom
   let page = 1;
   const allEvents: UsageEvent[] = [];
   let complete = true;
+  let truncated = false;
+  let failureReason: string | null = null;
+  let fetchedRaw = 0;
+  let reportedTotal: number | null = null;
+  let stoppedOnShortPage = false;
 
   while (page <= maxPages) {
     const res = await fetch("https://cursor.com/api/dashboard/get-filtered-usage-events", withTimeout({
@@ -204,6 +221,7 @@ export async function fetchUsageEvents(opts: FetchUsageEventsOptions = {}): Prom
     if (!res.ok) {
       apiLog(`get-filtered-usage-events failed: ${res.status}`);
       complete = false;
+      failureReason = `HTTP ${res.status} from get-filtered-usage-events (page ${page})`;
       break;
     }
 
@@ -211,28 +229,52 @@ export async function fetchUsageEvents(opts: FetchUsageEventsOptions = {}): Prom
     if (!dataRecord) {
       apiLog("get-filtered-usage-events failed: invalid JSON");
       complete = false;
+      failureReason = "Invalid JSON from get-filtered-usage-events";
       break;
     }
     const events: unknown[] = Array.isArray(dataRecord.usageEventsDisplay) ? dataRecord.usageEventsDisplay : [];
-
+    const totalCount = toNumber(dataRecord.totalUsageEventsCount);
     if (page === 1) {
-      apiLog(`Total usage events available: ${dataRecord.totalUsageEventsCount ?? "unknown"}`);
+      reportedTotal = totalCount;
+      apiLog(`Total usage events available: ${reportedTotal ?? "unknown"}`);
     }
 
+    fetchedRaw += events.length;
     for (const event of events) {
       const parsed = parseUsageEvent(event);
       if (parsed) allEvents.push(parsed);
     }
 
-    if (events.length < pageSize) break;
+    if (events.length < pageSize) {
+      stoppedOnShortPage = true;
+      break;
+    }
+    if (reportedTotal !== null && fetchedRaw >= reportedTotal) break;
     page++;
   }
 
-  if (page > maxPages) {
+  const totalCovered = reportedTotal !== null && fetchedRaw >= reportedTotal;
+  if (stoppedOnShortPage && reportedTotal !== null && !totalCovered) {
     complete = false;
+    truncated = true;
+    failureReason = `Page ended early (${fetchedRaw} of ${reportedTotal} events reported)`;
+    apiLog(
+      `Usage events page ended early (${fetchedRaw} of ${reportedTotal} reported)`,
+    );
+  }
+  if (page > maxPages && !totalCovered) {
+    complete = false;
+    truncated = true;
+    failureReason = `Stopped after ${maxPages} page(s) (${fetchedRaw} events fetched)`;
     apiLog(`Stopped usage events fetch after ${maxPages} page(s)`);
   }
 
   apiLog(`Fetched ${allEvents.length} usage events across ${Math.min(page, maxPages)} page(s)`);
-  return { events: allEvents.map(normalizeUsageEventRequests), complete };
+  return {
+    events: allEvents.map(normalizeUsageEventRequests),
+    complete,
+    truncated,
+    totalCovered,
+    failureReason,
+  };
 }

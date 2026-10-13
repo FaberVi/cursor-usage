@@ -126,6 +126,7 @@ function renderUsageTabPanel(): string {
     </div>
     <div class="breakdown-toolbar">
       ${renderRangeSelector("breakdown-range-selector", "breakdown")}
+      <button type="button" id="breakdown-grok-bot-toggle" class="breakdown-grok-toggle" aria-pressed="true" data-i18n="breakdown.grokBotToggle">Grok Bot</button>
     </div>
     <div class="breakdown-filter-row">
       <div class="breakdown-filters">
@@ -284,6 +285,7 @@ function renderActivityTabPanel(): string {
       <div class="events-toolbar">
         <div class="activity-tabs" role="tablist" aria-label="Activity view">
           <button type="button" class="activity-tab active" data-activity-tab="events" role="tab" aria-selected="true" data-i18n="tab.events">Events</button>
+          <button type="button" class="activity-tab" data-activity-tab="grokBot" role="tab" aria-selected="false" data-i18n="tab.grokBot">Grok Bot</button>
           <button type="button" class="activity-tab" data-activity-tab="conversations" role="tab" aria-selected="false" data-i18n="tab.conversations">Conversations</button>
         </div>
         <div class="events-toolbar-actions">
@@ -312,6 +314,24 @@ function renderActivityTabPanel(): string {
         </table>
       </div>
       <div class="pagination" id="pagination"></div>
+      </div>
+      <div id="grok-events-panel" class="activity-panel hidden">
+        <div class="table-scroll">
+          <table id="grok-events-table">
+          <thead>
+            <tr>
+              <th data-sort="timestamp" class="sortable" data-i18n="col.date">Date</th>
+              <th data-sort="kind" class="sortable" data-i18n="col.type">Type</th>
+              <th data-sort="model" class="sortable" data-i18n="col.model">Model</th>
+              <th data-sort="totalTokens" class="sortable num" data-i18n="col.tokens">Tokens</th>
+              <th data-sort="requests" class="sortable num" data-i18n="col.requests">Requests</th>
+              <th data-sort="spendCents" class="sortable num" data-i18n="col.spend">Spend</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="grok-pagination"></div>
       </div>
       <div id="conversations-panel" class="activity-panel hidden">
         <div class="table-scroll">

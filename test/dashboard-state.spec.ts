@@ -4,6 +4,7 @@ import {
   aggregateChartSeries,
   aggregateModelBreakdownTotals,
   buildDashboardState,
+  dashboardNotice,
   filterEventsForChartRange,
   filterEventsForRange,
   paginateList,
@@ -76,10 +77,10 @@ describe("buildDashboardState", () => {
       {},
       0,
       sampleEvents,
-      ["Events outdated"],
+      [dashboardNotice("Events outdated", "HTTP 503")],
       false,
     );
-    expect(state.warnings).toEqual(["Events outdated"]);
+    expect(state.warnings).toEqual([dashboardNotice("Events outdated", "HTTP 503")]);
     expect(state.eventsComplete).toBeFalse();
   });
 

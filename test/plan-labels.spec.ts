@@ -5,6 +5,7 @@ import {
   buildPlanInfo,
   formatMembershipTier,
   formatTeamSeatLabel,
+  isXSubscriptionMembership,
   parseTeamSeatType,
 } from "../src/plan-labels";
 
@@ -20,6 +21,15 @@ describe("formatMembershipTier", () => {
     expect(formatMembershipTier("enterprise")).toBe("Enterprise");
     expect(formatMembershipTier("pro")).toBe("Pro");
     expect(formatMembershipTier("ultra")).toBe("Ultra");
+  });
+
+  // Slugs below are hypothetical until verified with probe-cursor-api on a live X Subscription account.
+  it("maps The X Subscription tier slugs", () => {
+    expect(formatMembershipTier("x_premium")).toBe("The X · Premium");
+    expect(formatMembershipTier("x-plus")).toBe("The X · Plus");
+    expect(formatMembershipTier("x_subscription")).toBe("The X Subscription");
+    expect(isXSubscriptionMembership("x_super")).toBeTrue();
+    expect(isXSubscriptionMembership("pro")).toBeFalse();
   });
 });
 
@@ -124,6 +134,19 @@ describe("buildPlanInfo", () => {
     expect(plan.accountType).toBe("personal");
     expect(plan.tier).toBe("Pro");
     expect(plan.displayName).toBe("Personal · Pro");
+    expect(plan.billingProgram).toBe("cursor");
+  });
+
+  it("builds The X Subscription personal label from hypothetical slug", () => {
+    const plan = buildPlanInfo({
+      isTeamMember: false,
+      membershipType: "x_premium",
+      individualMembershipType: "x_premium",
+    });
+
+    expect(plan.tier).toBe("The X · Premium");
+    expect(plan.displayName).toBe("The X Subscription · Premium");
+    expect(plan.billingProgram).toBe("x_subscription");
   });
 });
 
