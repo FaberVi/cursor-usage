@@ -4,14 +4,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-10-22
+
 ### Added
 - Plan labels for hypothetical The X Subscription membership slugs (`x_plus`, `x_premium`, …) with `billingProgram: x_subscription` and dashboard plan-banner link to Cursor help.
+- **Grok Bot** activity tab and a breakdown chip to show or hide `grok-bot*` models in usage-by-model.
+- Dashboard error and warning banners with an **info** control for technical `detail` (not only generic copy).
 
 ### Changed
+- Refresh loading stays aligned between the dashboard spinner and the status bar for the full `updateUsage` cycle, including background event-history sync.
 - Weekly Grok card, pricing pool copy, and card help describe the **shared weekly Grok pool** (The X Subscription) vs monthly First-party / API pools; status bar tooltip title renamed; third-party models noted as excluded from that pool.
 - README: new **The X Subscription** section (limits of this extension, unify link).
 - Bundled pricing catalog synced from [Cursor models & pricing](https://cursor.com/docs/models-and-pricing) (`lastUpdated` `2026-10-22`): Grok 4.7 500k, Gemini 3.5 Flash Lite, Gemini 4 Argon, Muse Wonder, and third-party rate updates (e.g. Claude Opus 5.5, GPT-5.4 family).
 - Pricing docs sync reads the **Cursor models** table under Included usage and recognizes **Third-party models** plan columns.
+- Day-level pool share in the breakdown uses the full billing-cycle bucket as the denominator.
+- Runtime dependency: `sql.js` **1.15.1** (packaged in the VSIX).
+
+### Fixed
+- Usage refresh and event-store sync no longer leave a false partial-sync warning after a background history catch-up completes.
 
 ## [1.0.4] - 2026-10-12
 

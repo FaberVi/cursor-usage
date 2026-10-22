@@ -2,7 +2,7 @@
 
 Community-maintained fork of [cursor-metrics](https://github.com/wrick17/cursor-metrics). See Cursor usage in your status bar: included requests, Auto/API pool usage, and on-demand spend, live while you work. Click the status bar item to open a full dashboard inside your editor.
 
-**Current release:** `1.0.4` — October 2026 pricing catalog, day-level pool share against the billing-cycle bucket, and usage-history sync that no longer drops a day's tokens or keeps a false partial-sync warning (requires **Cursor / VS Code 1.128+**).
+**Current release:** `1.0.5` — The X Subscription labels and weekly Grok pool copy, synchronized refresh loading on dashboard and status bar, Grok Bot activity/breakdown UX, pricing catalog sync from Cursor docs (Oct 2026), and banner error details (requires **Cursor / VS Code 1.128+**).
 
 ![Cursor Usage extension tooltip](media/extensions-tooltip.png)
 
@@ -172,7 +172,7 @@ cursor --install-extension build/cursor-usage-<version>.vsix
 code --install-extension build/cursor-usage-<version>.vsix
 ```
 
-Replace `<version>` with the value in `package.json` (e.g. `1.0.4`).
+Replace `<version>` with the value in `package.json` (e.g. `1.0.5`).
 
 ### Publish to marketplaces
 
