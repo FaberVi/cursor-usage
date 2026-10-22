@@ -21,7 +21,14 @@ type BunMatchers<T = unknown> = {
 declare module "bun:test" {
   export function describe(name: string, fn: () => void): void;
   export function it(name: string, fn: () => void | Promise<void>): void;
+  export function beforeEach(fn: () => void | Promise<void>): void;
+  export function afterEach(fn: () => void | Promise<void>): void;
   export function expect<T>(value: T): BunMatchers<T>;
+  export function mock<T extends (...args: never[]) => unknown>(fn?: T): T;
+  export function spyOn<T extends object, K extends keyof T>(
+    object: T,
+    method: K,
+  ): { mockRestore(): void };
 }
 
 declare module "bun:sqlite" {
