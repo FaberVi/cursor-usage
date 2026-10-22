@@ -105,8 +105,12 @@ export function parseMarkdownPricingTable(markdown: string): ParsedPricingRow[] 
 
 /** Base first-party models from `## Cursor Models` (skips Fast variant rows). */
 export function parseCursorModelsTable(markdown: string): ParsedPricingRow[] {
-  const section =
+  // Current docs: table under "### Cursor models" (Included usage). Legacy stub: "## Cursor Models".
+  const modernSection =
+    markdown.match(/###\s+Cursor models[\s\S]*?(?=\n##\s|$)/i)?.[0] ?? "";
+  const legacySection =
     markdown.match(/##\s+Cursor Models[\s\S]*?(?=\n##\s|\n###\s|$)/i)?.[0] ?? "";
+  const section = modernSection || legacySection;
   return parsePricingRowsFromSection(section).filter(
     (row) => !/\(\s*fast\s*\)/i.test(row.displayName),
   );
@@ -163,7 +167,9 @@ export function parseMarkdownPlans(markdown: string): ParsedPlanPricingInfo[] {
   const header = rows[0]!.map((cell) => cell.toLowerCase());
   const planIdx = header.findIndex((cell) => cell.includes("plan"));
   const priceIdx = header.findIndex((cell) => cell.includes("price"));
-  const usageIdx = header.findIndex((cell) => cell.includes("other models"));
+  const usageIdx = header.findIndex(
+    (cell) => cell.includes("other models") || cell.includes("third-party"),
+  );
 
   if (planIdx < 0 || priceIdx < 0 || usageIdx < 0) return [];
 

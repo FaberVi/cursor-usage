@@ -57,7 +57,7 @@ describe("package configuration", () => {
     const vscodeIgnore = readFileSync(".vscodeignore", "utf-8").split(/\r?\n/);
     const esbuildConfig = readFileSync("esbuild.config.mjs", "utf-8");
 
-    expect(packageJson.dependencies).toEqual({ "sql.js": "^1.14.2" });
+    expect(packageJson.dependencies).toEqual({ "sql.js": "^1.15.1" });
     expect(packageJson.engines.vscode).toBe("^1.128.0");
     expect(packageJson.scripts.package).not.toContain("--no-dependencies");
     expect(packageJson.scripts["package:vsm"]).not.toContain("--no-dependencies");

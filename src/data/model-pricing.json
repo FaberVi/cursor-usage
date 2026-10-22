@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://cursor.com/docs/models-and-pricing",
-  "lastUpdated": "2026-10-12",
+  "lastUpdated": "2026-10-22",
   "cursorTokenRatePerMillion": 0.25,
   "plans": [
     {
@@ -148,7 +148,7 @@
           "description": "Fast mode for long-context tier"
         }
       ],
-      "notes": "Long-context tier (>256k input, up to 500k); Fast mode for long context is billed at 3x standard Grok 4.7 rates"
+      "notes": "Jointly trained by Cursor and SpaceXAI; Long context (>256k input tokens) is billed at 2x standard rates, up to 500k; Fast mode is available at 2x pricing; Fast mode for long context (>256k) is billed at 3x standard rates"
     },
     {
       "id": "grok-4.6",
@@ -838,7 +838,7 @@
       "rates": {
         "input": 0.75,
         "cacheRead": 0.075,
-        "output": 3.5
+        "output": 3.75
       },
       "aliases": [
         "gemini-3-7-flash",
@@ -855,7 +855,7 @@
       "rates": {
         "input": 0.75,
         "cacheRead": 0.075,
-        "output": 3.5
+        "output": 3.75
       },
       "aliases": [
         "gemini-3-8-flash",
@@ -1364,7 +1364,8 @@
           "description": "Same per-token rates up to 1M context in Max Mode"
         }
       ],
-      "notes": "Requires Max Mode on legacy request-based plans; Up to 1M tokens in Max Mode at the same per-token rates (no long-context surcharge); Cached input is billed at $0.15 per million tokens with no separate cache-write charge"
+      "notes": "Hidden by default; Requires Max Mode on legacy request-based plans; Up to 1M tokens in Max Mode at the same per-token rates (no long-context surcharge); Cached input is billed at $0.15 per million tokens with no separate cache-write charge",
+      "hidden": true
     },
     {
       "id": "grok-bot-default",
@@ -1410,6 +1411,52 @@
         "grok-bot-cua"
       ],
       "notes": "Browser and computer-use turns; same weekly Grok Bot pool. Cloud agents launched by Grok Bot bill separately to your Cursor plan (first-party/API pools)."
+    },
+    {
+      "id": "gemini-3-5-flash-lite",
+      "displayName": "Gemini 3.5 Flash Lite",
+      "provider": "Google",
+      "pool": "api",
+      "rates": {
+        "input": 0.3,
+        "cacheRead": 0.03,
+        "output": 2.5
+      },
+      "hidden": true,
+      "notes": "Hidden by default; Used only for the Auto-review classifier. It is not selectable as a chat or agent model",
+      "aliases": [
+        "gemini-3-5-flash-lite"
+      ]
+    },
+    {
+      "id": "gemini-4-argon",
+      "displayName": "Gemini 4 Argon",
+      "provider": "Google",
+      "pool": "api",
+      "rates": {
+        "input": 2,
+        "cacheRead": 0.1,
+        "output": 10
+      },
+      "notes": "-",
+      "aliases": [
+        "gemini-4-argon"
+      ]
+    },
+    {
+      "id": "muse-wonder",
+      "displayName": "Muse Wonder",
+      "provider": "Meta",
+      "pool": "api",
+      "rates": {
+        "input": 4,
+        "cacheRead": 0.2,
+        "output": 20
+      },
+      "notes": "Up to 1M tokens in Max Mode at the same per-token rates (no long-context surcharge); Cached input is billed at $0.20 per million tokens with no separate cache-write charge",
+      "aliases": [
+        "muse-wonder"
+      ]
     }
   ]
 }

@@ -47,6 +47,18 @@ describe("pricing catalog sync parser", () => {
     expect(rows[0]?.rates.output).toBe(6);
   });
 
+  it("parses Cursor models table under Included usage (X Subscription docs)", () => {
+    const markdown = `### Cursor models
+
+| Model | Provider | Input | Cache write | Cache read | Output | US data residency | Notes |
+| Grok 4.7 500k | Cursor | $4 | - | $1 | $12 | Yes | - |
+| Grok 4.7 500k (Fast) | Cursor | $6 | - | $1.5 | $18 | Yes | - |
+`;
+    const rows = parseCursorModelsTable(markdown);
+    expect(rows.map((row) => row.displayName)).toEqual(["Grok 4.7 500k"]);
+    expect(rows[0]?.rates.output).toBe(12);
+  });
+
   it("parses plans and cursor token rate", () => {
     const plans = parseMarkdownPlans(fixtureMarkdown);
     expect(plans.map((plan) => plan.id)).toEqual(["start", "pro", "pro-plus"]);

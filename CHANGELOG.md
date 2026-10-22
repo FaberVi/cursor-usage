@@ -10,6 +10,8 @@ All notable changes to this project are documented in this file.
 ### Changed
 - Weekly Grok card, pricing pool copy, and card help describe the **shared weekly Grok pool** (The X Subscription) vs monthly First-party / API pools; status bar tooltip title renamed; third-party models noted as excluded from that pool.
 - README: new **The X Subscription** section (limits of this extension, unify link).
+- Bundled pricing catalog synced from [Cursor models & pricing](https://cursor.com/docs/models-and-pricing) (`lastUpdated` `2026-10-22`): Grok 4.7 500k, Gemini 3.5 Flash Lite, Gemini 4 Argon, Muse Wonder, and third-party rate updates (e.g. Claude Opus 5.5, GPT-5.4 family).
+- Pricing docs sync reads the **Cursor models** table under Included usage and recognizes **Third-party models** plan columns.
 
 ## [1.0.4] - 2026-10-12
 
