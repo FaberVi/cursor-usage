@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-10-27
+
+### Added
+- Pricing catalog entry for **DeepSeek V4.1 Flash 1017** ($0.30 / $0.006 cache read / $1.20 per million tokens), hidden by default, from [Cursor models & pricing](https://cursor.com/docs/models-and-pricing) and the [model page](https://cursor.com/docs/models/deepseek-v4-1-flash-1017) (`lastUpdated` `2026-10-27`). The usage API slug `deepseek-v41-flash-1017` maps to that entry.
+
+### Changed
+- Claude Opus 5 Fast and Claude Opus 5.5 Fast use the model-page list prices ($10/$50 and $8/$40 per million input/output, cache scaled 2× with the base cache ratio) instead of the same rates as the standard tier.
+- GPT-5.6 Luna, Sol, and Terra notes include the model-page long-context rule: above 272k input tokens, output is 1.5× as well as input at 2×.
+
 ## [1.0.5] - 2026-10-22
 
 ### Added

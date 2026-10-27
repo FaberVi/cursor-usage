@@ -104,11 +104,31 @@ describe("resolveModelPricing", () => {
     expect(resolveModelPricingDetailed("claude-opus-5-thinking-max")?.entry.id).toBe("claude-opus-5");
     expect(resolveModelPricingDetailed("claude-opus-5-thinking-max")?.variant?.id).toBe("thinking");
     expect(resolveModelPricingDetailed("claude-opus-5-5-fast")?.entry.id).toBe("claude-opus-5-5");
+    expect(resolveModelPricingDetailed("claude-opus-5-5-fast")?.effectiveRates.input).toBe(8);
+    expect(resolveModelPricingDetailed("claude-opus-5-5-fast")?.effectiveRates.output).toBe(40);
+    expect(resolveModelPricingDetailed("claude-opus-5-fast")?.effectiveRates).toEqual({
+      input: 10,
+      cacheWrite: 12.5,
+      cacheRead: 1,
+      output: 50,
+    });
     expect(resolveModelPricingDetailed("cursor-grok-4.7-fast")?.entry.id).toBe("grok-4.7");
     expect(resolveModelPricingDetailed("cursor-grok-4.7-fast")?.variant?.id).toBe("fast");
     expect(resolveModelPricing("grok-bot-default")?.pool).toBe("grokBot");
     expect(resolveModelPricingDetailed("gemini-3.6-flash-high")?.entry.id).toBe("gemini-3.6-flash");
     expect(resolveModelPricing("kimi-k3")?.displayName).toBe("Kimi K3");
+    const deepseek = resolveModelPricingDetailed("deepseek-v4-1-flash-1017");
+    expect(deepseek?.entry.id).toBe("deepseek-v4.1-flash-1017");
+    expect(deepseek?.entry.displayName).toBe("DeepSeek V4.1 Flash 1017");
+    expect(deepseek?.entry.hidden).toBe(true);
+    expect(deepseek?.entry.pool).toBe("api");
+    expect(deepseek?.effectiveRates).toEqual({ input: 0.3, cacheRead: 0.006, output: 1.2 });
+    expect(resolveModelPricingDetailed("deepseek-v4.1-flash-1017-max")?.variant?.id).toBe("high");
+    expect(resolveModelPricingDetailed("deepseek-v4-1-flash-1017-low")?.entry.id).toBe(
+      "deepseek-v4.1-flash-1017",
+    );
+    expect(resolveModelPricing("deepseek-v41-flash-1017-high")?.id).toBe("deepseek-v4.1-flash-1017");
+    expect(resolveModelPricingDetailed("deepseek-v41-flash-1017-high")?.variant?.id).toBe("high");
     expect(getModelPricingCatalog().plans.some((plan) => plan.id === "start")).toBe(true);
   });
 
