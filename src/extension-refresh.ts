@@ -216,6 +216,7 @@ function usageRefreshHost(): UsageRefreshHost {
     publishState: () => {
       DashboardPanel.currentPanel?.postState(getDashboardState());
     },
+    globalState: () => extensionContext.globalState,
   };
 }
 

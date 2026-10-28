@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-10-28
+
+### Fixed
+- Daily budget pacing marks first-party and API pools exhausted at 100% cumulative usage; card, pace chart tooltips, and status bar tooltip show when the allowance is already used up.
+- Weekly Grok pool card and status bar segment stay visible when `get-sand-usage-status` fails by reusing the last valid reading from extension cache (with dashboard warning).
+
 ## [1.0.6] - 2026-10-27
 
 ### Added

@@ -16,6 +16,7 @@ const MESSAGES = {
     poolFirstParty: "First-party models",
     poolApi: "API",
     grokBotWeekly: "Weekly Grok pool",
+    grokBotWeeklyShort: "Grok wk",
     grokBotWeeklyUsed: "{pct}% weekly allowance used",
     grokBotWeeklyResetUnknown: "Resets weekly",
     totalUsed: "{pct}% total used",
@@ -51,6 +52,8 @@ const MESSAGES = {
     warningEventsIncomplete: "Partial event sync — data beyond the page limit may be missing.",
     warningSpendFetchFailed: "Daily spend breakdown could not be refreshed.",
     warningEventStoreSyncFailed: "Could not save usage events locally; showing the latest API snapshot.",
+    warningGrokBotUsageCached:
+      "Weekly Grok pool meter is from cache — Cursor get-sand-usage-status is temporarily unavailable.",
     showLogs: "Show Logs",
     usageUnavailableDetail: "Cursor usage unavailable: {error}",
     usageNotAvailableYet: "Cursor usage data is not available yet.",
@@ -72,6 +75,7 @@ const MESSAGES = {
     poolFirstParty: "Modelli first-party",
     poolApi: "API",
     grokBotWeekly: "Pool Grok settimanale",
+    grokBotWeeklyShort: "Grok sett.",
     grokBotWeeklyUsed: "{pct}% quota settimanale consumata",
     grokBotWeeklyResetUnknown: "Reset settimanale",
     totalUsed: "{pct}% totale usato",
@@ -107,6 +111,8 @@ const MESSAGES = {
     warningEventsIncomplete: "Sincronizzazione eventi parziale — i dati oltre il limite di pagine potrebbero mancare.",
     warningSpendFetchFailed: "Impossibile aggiornare il breakdown della spesa giornaliera.",
     warningEventStoreSyncFailed: "Impossibile salvare gli eventi in locale; mostrato l'ultimo snapshot API.",
+    warningGrokBotUsageCached:
+      "Pool Grok settimanale da cache — get-sand-usage-status di Cursor non è momentaneamente disponibile.",
     showLogs: "Mostra log",
     usageUnavailableDetail: "Utilizzo Cursor non disponibile: {error}",
     usageNotAvailableYet: "I dati di utilizzo Cursor non sono ancora disponibili.",

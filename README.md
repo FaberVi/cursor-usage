@@ -2,7 +2,7 @@
 
 Community-maintained fork of [cursor-metrics](https://github.com/wrick17/cursor-metrics). See Cursor usage in your status bar: included requests, Auto/API pool usage, and on-demand spend, live while you work. Click the status bar item to open a full dashboard inside your editor.
 
-**Current release:** `1.0.6` — Pricing catalog sync (DeepSeek V4.1 Flash 1017, Opus 5/5.5 Fast rates, GPT-5.6 long-context notes; `lastUpdated` 2026-10-27). Requires **Cursor / VS Code 1.128+**.
+**Current release:** `1.0.7` — Exhausted pool daily budget UX, weekly Grok pool cache when sand API fails, Grok segment in status bar. Requires **Cursor / VS Code 1.128+**.
 
 ![Cursor Usage extension tooltip](media/extensions-tooltip.png)
 

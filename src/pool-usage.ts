@@ -16,7 +16,7 @@ function formatPercent(value: number): string {
 }
 
 export function formatStatusBarUsageText(
-  data: Pick<UsagePayload, "includedRequests" | "onDemand" | "poolUsage">,
+  data: Pick<UsagePayload, "includedRequests" | "onDemand" | "poolUsage" | "grokBotUsage">,
   opts: {
     onDemandVisible: boolean;
     showPremiumRequests?: boolean;
@@ -35,6 +35,10 @@ export function formatStatusBarUsageText(
   if (data.poolUsage) {
     parts.push(`${formatPercent(data.poolUsage.autoPercentUsed)}% ${t(locale, "poolFirstParty")}`);
     parts.push(`${formatPercent(data.poolUsage.apiPercentUsed)}% ${t(locale, "poolApi")}`);
+  }
+
+  if (data.grokBotUsage) {
+    parts.push(`${formatPercent(data.grokBotUsage.percentUsed)}% ${t(locale, "grokBotWeeklyShort")}`);
   }
 
   if (opts.onDemandVisible) {

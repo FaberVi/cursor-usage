@@ -12,6 +12,7 @@ import { MAX_STORE_SYNC_PAGES, MAX_USAGE_EVENT_PAGES } from "./cursor-api-utils"
 import { dashboardNotice, type DashboardNotice } from "./dashboard-state";
 import { invalidateSetupCache } from "./cursor-setup-cache";
 import type { DashboardLocale } from "./dashboard-locale";
+import { resolveGrokBotUsageWithCache } from "./grok-bot-usage-cache";
 import { t } from "./i18n";
 import { updateStatusBar } from "./status-bar-content";
 import { UsageEventStore } from "./usage-event-store";
@@ -51,6 +52,7 @@ export type UsageRefreshHost = {
   statusBarItem: () => vscode.StatusBarItem;
   statusBarContext: () => StatusBarContext;
   publishState: () => void;
+  globalState: () => vscode.Memento;
 };
 
 let backgroundEventSyncPromise: Promise<void> | null = null;
@@ -243,8 +245,22 @@ export async function runUpdateUsage(
     state.lastEventsComplete = eventsComplete;
 
     if (data) {
+      const grokResolved = resolveGrokBotUsageWithCache(
+        host.globalState(),
+        data.grokBotUsage,
+        Date.now(),
+      );
+      let payload = data;
+      if (grokResolved.usage !== data.grokBotUsage) {
+        payload = { ...data, grokBotUsage: grokResolved.usage };
+      }
+      if (grokResolved.stale) {
+        warnings.push(dashboardNotice(t(locale, "warningGrokBotUsageCached")));
+        host.log("Grok Bot weekly meter: using cached value (sand API unavailable)");
+      }
+
       const eventsForEnrichment = state.lastEvents ?? [];
-      const enriched = enrichUsageFromEvents(data, eventsForEnrichment, Date.now());
+      const enriched = enrichUsageFromEvents(payload, eventsForEnrichment, Date.now());
       state.lastData = enriched;
       state.lastError = null;
       state.lastErrorDetail = null;
