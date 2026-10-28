@@ -119,7 +119,11 @@ export function buildPoolTodayPaceMarkdown(
     [t(locale, "poolApi"), apiPace],
   ] as const) {
     if (!pace) continue;
-    const usedRatio = pace.allowance > 0 ? Math.min(pace.used / pace.allowance, 1) : 0;
+    const usedRatio = pace.exhausted
+      ? 1
+      : pace.allowance > 0
+        ? Math.min(pace.used / pace.allowance, 1)
+        : 0;
     rows.push(
       `  <tr>`,
       `    <td width="18%"><sub>${label}</sub></td>`,
@@ -140,6 +144,7 @@ export function buildPoolTodayPaceMarkdown(
 }
 
 function formatBudgetStatus(pace: PoolDayPace, locale: DashboardLocale): string {
+  if (pace.exhausted) return t(locale, "alreadyExhausted");
   if (Math.abs(pace.residual) < 0.05) return t(locale, "onBudget");
   if (pace.residual > 0) return tf(locale, "leftToday", { pct: formatPercent(pace.residual) });
   return tf(locale, "overBudget", { pct: formatPercent(Math.abs(pace.residual)) });

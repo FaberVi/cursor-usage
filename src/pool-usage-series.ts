@@ -5,10 +5,15 @@ import { startOfUtcDay } from "./utc-day";
 
 const DAY_MS = 86_400_000;
 
+/** Matches a displayed 100% (`formatPercent` rounds to one decimal). */
+const POOL_EXHAUSTED_PERCENT = 99.95;
+
 export type PoolDayPace = {
   allowance: number;
   used: number;
   residual: number;
+  /** Pool already reached 100% by the end of this day. Daily residual is not "on budget". */
+  exhausted: boolean;
 };
 
 export type PoolUsageSeries = {
@@ -123,7 +128,9 @@ export function computeDailyPoolPacing(
     const daysLeft = Math.max(totalCycleDays - index, 1);
     const allowance = remaining / daysLeft;
     const residual = allowance - used;
-    return { allowance, used, residual };
+    const cumNow = cumulative[index] ?? 0;
+    const exhausted = cumBefore >= POOL_EXHAUSTED_PERCENT || cumNow >= POOL_EXHAUSTED_PERCENT;
+    return { allowance, used, residual, exhausted };
   });
 }
 

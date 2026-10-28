@@ -2,7 +2,7 @@
   "name": "cursor-usage",
   "displayName": "Cursor Usage (Community)",
   "description": "Shows your Cursor IDE usage (included requests and on-demand spend) in the status bar",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "publisher": "fabervi",
   "license": "MIT",
   "private": true,

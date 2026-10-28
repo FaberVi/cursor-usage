@@ -162,6 +162,16 @@ describe("computeDailyPoolPacing", () => {
     expect(pace[0]!.residual).toBeCloseTo(0, 5);
     expect(pace[1]!.allowance).toBeCloseTo(10, 5);
     expect(pace[1]!.residual).toBeCloseTo(-5, 5);
+    expect(pace[0]!.exhausted).toBe(false);
+    expect(pace[1]!.exhausted).toBe(false);
+  });
+
+  it("marks a day exhausted once cumulative usage has reached 100%", () => {
+    const pace = computeDailyPoolPacing([100, 100], [80, 0], 10);
+    expect(pace[0]!.exhausted).toBe(true);
+    expect(pace[1]!.allowance).toBe(0);
+    expect(pace[1]!.residual).toBeCloseTo(0, 5);
+    expect(pace[1]!.exhausted).toBe(true);
   });
 });
 

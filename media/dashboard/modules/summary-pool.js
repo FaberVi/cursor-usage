@@ -53,14 +53,20 @@ function renderTodayPaceRow(label, pace) {
   if (!pace) return "";
   const { allowance, used, residual } = pace;
   const usedRatio = allowance > 0 ? used / allowance : 0;
-  const usedWidth = Math.min(Math.max(usedRatio, 0), 1) * 100;
   const allowanceWidth = 100;
-  const budgetZoneWidth = usedRatio < 1 ? (1 - Math.min(usedRatio, 1)) * 100 : 0;
-  const overWidth = usedRatio > 1 ? Math.min((usedRatio - 1) * 100, 100) : 0;
+  let usedWidth = Math.min(Math.max(usedRatio, 0), 1) * 100;
+  let budgetZoneWidth = usedRatio < 1 ? (1 - Math.min(usedRatio, 1)) * 100 : 0;
+  let overWidth = usedRatio > 1 ? Math.min((usedRatio - 1) * 100, 100) : 0;
 
   let statusText;
   let statusClass;
-  if (residual > 0.05) {
+  if (pace.exhausted) {
+    statusText = t("alreadyExhausted");
+    statusClass = "over";
+    usedWidth = 0;
+    budgetZoneWidth = 0;
+    overWidth = 100;
+  } else if (residual > 0.05) {
     statusText = formatPercent(residual) + "% " + t("leftToday");
     statusClass = "under";
   } else if (residual < -0.05) {

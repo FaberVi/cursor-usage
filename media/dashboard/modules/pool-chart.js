@@ -40,7 +40,9 @@ function positionTooltip(el, chart, tooltip) {
   el.style.opacity = "1";
 }
 
-function formatPaceResidual(residual) {
+function formatPaceResidual(pace) {
+  if (pace?.exhausted) return t("alreadyExhausted");
+  const residual = pace?.residual || 0;
   if (Math.abs(residual) < 0.05) return t("onPaceShort");
   if (residual > 0) return formatPercent(residual) + "% " + t("left");
   return formatPercent(Math.abs(residual)) + "% " + t("over");
@@ -99,8 +101,8 @@ function renderPoolPaceTooltip(context) {
   }
 
   const title = (tooltip.title && tooltip.title[0]) || "";
-  const autoResidual = series.dailyAutoPace[idx]?.residual || 0;
-  const apiResidual = series.dailyApiPace[idx]?.residual || 0;
+  const autoPace = series.dailyAutoPace[idx];
+  const apiPace = series.dailyApiPace[idx];
 
   el.innerHTML =
     '<div class="t-title">' + escapeHtml(title) + "</div>" +
@@ -108,9 +110,9 @@ function renderPoolPaceTooltip(context) {
       "<th>" + escapeHtml(t("poolTooltipPool")) + "</th><th class=\"num\">" + escapeHtml(t("poolDailyPace")) + "</th>" +
     "</tr></thead><tbody>" +
       '<tr><td><span class="t-dot" style="background:' + AUTO_COLOR + '"></span>' + escapeHtml(t("poolFirstParty")) + "</td>" +
-        '<td class="num">' + escapeHtml(formatPaceResidual(autoResidual)) + "</td></tr>" +
+        '<td class="num">' + escapeHtml(formatPaceResidual(autoPace)) + "</td></tr>" +
       '<tr><td><span class="t-dot" style="background:' + API_COLOR + '"></span>' + escapeHtml(t("poolApi")) + "</td>" +
-        '<td class="num">' + escapeHtml(formatPaceResidual(apiResidual)) + "</td></tr>" +
+        '<td class="num">' + escapeHtml(formatPaceResidual(apiPace)) + "</td></tr>" +
     "</tbody></table>";
 
   positionTooltip(el, chart, tooltip);
