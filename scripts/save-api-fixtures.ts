@@ -6,6 +6,7 @@ import { join, dirname } from "path";
 import { homedir } from "os";
 import { fileURLToPath } from "url";
 import { readCursorAuthValuesFromDb } from "../src/cursor-api";
+import { openCursorAuthSecret } from "../src/cursor-safe-storage";
 
 const dbPath = join(
   process.env.APPDATA ?? join(homedir(), "AppData/Roaming"),
@@ -20,8 +21,9 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> {
 }
 
 const authValues = readCursorAuthValuesFromDb(dbPath);
-const jwt = authValues["cursorAuth/accessToken"];
-if (!jwt) throw new Error("No accessToken");
+const rawToken = authValues["cursorAuth/accessToken"];
+if (!rawToken) throw new Error("No accessToken");
+const jwt = await openCursorAuthSecret(rawToken);
 
 const sub = typeof decodeJwtPayload(jwt).sub === "string" ? decodeJwtPayload(jwt).sub as string : "";
 const userId = sub.split("|")[1] ?? sub;

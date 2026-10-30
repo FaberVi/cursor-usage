@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-10-30
+
+### Fixed
+- Auth reads `cursorAuth/accessToken` again when Cursor stores it as `cursor-safe-storage:v1:` (Electron safeStorage / OSCrypt). Plaintext JWTs in older installs still work. Windows uses Local State + DPAPI; macOS reads the Cursor Safe Storage keychain entry; Linux uses the basic-text `peanuts` backend for `v10`/`v11` blobs.
+
 ## [1.0.7] - 2026-10-28
 
 ### Fixed

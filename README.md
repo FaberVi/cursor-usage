@@ -2,7 +2,7 @@
 
 Community-maintained fork of [cursor-metrics](https://github.com/wrick17/cursor-metrics). See Cursor usage in your status bar: included requests, Auto/API pool usage, and on-demand spend, live while you work. Click the status bar item to open a full dashboard inside your editor.
 
-**Current release:** `1.0.7` — Exhausted pool daily budget UX, weekly Grok pool cache when sand API fails, Grok segment in status bar. Requires **Cursor / VS Code 1.128+**.
+**Current release:** `1.0.8` — Restores usage fetch when Cursor encrypts the session token in local storage (`cursor-safe-storage:v1:`). Requires **Cursor / VS Code 1.128+**.
 
 ![Cursor Usage extension tooltip](media/extensions-tooltip.png)
 
@@ -97,7 +97,7 @@ Third-party models (Claude, GPT, etc.) in Cursor are **not** part of the include
 ## Privacy and behavior
 
 - No manual API key setup required.
-- Uses your existing signed-in Cursor session locally.
+- Uses your existing signed-in Cursor session locally. The extension reads the same `cursorAuth/accessToken` entry Cursor writes to `globalStorage/state.vscdb`. Recent Cursor builds may seal that value with OS-backed encryption (`cursor-safe-storage:v1:`); the extension decrypts it on your machine (Windows DPAPI + Local State, macOS Keychain, Linux basic-text store) and never sends your token anywhere except to Cursor’s own usage/dashboard endpoints, same as before.
 - Fetches on activity (editing/focus) instead of constant polling.
 - Manual **Refresh** updates usage quickly, then syncs older dashboard events in the background when needed.
 - Caches auth and API responses to avoid redundant requests.
@@ -172,7 +172,7 @@ cursor --install-extension build/cursor-usage-<version>.vsix
 code --install-extension build/cursor-usage-<version>.vsix
 ```
 
-Replace `<version>` with the value in `package.json` (e.g. `1.0.5`).
+Replace `<version>` with the value in `package.json` (e.g. `1.0.8`).
 
 ### Publish to marketplaces
 

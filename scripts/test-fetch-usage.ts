@@ -8,6 +8,7 @@ console.log(JSON.stringify(data, null, 2));
 
 console.log("\n=== direct usage-summary parse ===");
 import { readCursorAuthValuesFromDb } from "../src/cursor-api";
+import { openCursorAuthSecret } from "../src/cursor-safe-storage";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -15,8 +16,9 @@ const dbPath = join(
   process.env.APPDATA ?? join(homedir(), "AppData/Roaming"),
   "Cursor/User/globalStorage/state.vscdb",
 );
-const jwt = readCursorAuthValuesFromDb(dbPath)["cursorAuth/accessToken"];
-if (!jwt) throw new Error("no jwt");
+const rawToken = readCursorAuthValuesFromDb(dbPath)["cursorAuth/accessToken"];
+if (!rawToken) throw new Error("no jwt");
+const jwt = await openCursorAuthSecret(rawToken);
 const part = jwt.split(".")[1]!;
 const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
 const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);

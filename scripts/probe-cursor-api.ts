@@ -5,6 +5,7 @@
  * and get-sand-usage-status to update test/fixtures and membership slugs in plan-labels.ts.
  */
 import { readCursorAuthValuesFromDb } from "../src/cursor-api";
+import { openCursorAuthSecret } from "../src/cursor-safe-storage";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -37,13 +38,19 @@ function redact(obj: unknown, depth = 0): unknown {
 }
 
 const authValues = readCursorAuthValuesFromDb(dbPath);
-const jwt = authValues["cursorAuth/accessToken"];
+const rawToken = authValues["cursorAuth/accessToken"];
 const email = authValues["cursorAuth/cachedEmail"] ?? null;
-if (!jwt) {
+if (!rawToken) {
   console.error("No accessToken in database");
   process.exit(1);
 }
-const accessToken: string = jwt;
+let accessToken: string;
+try {
+  accessToken = await openCursorAuthSecret(rawToken);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : "Could not decrypt sealed token");
+  process.exit(1);
+}
 
 const payload = decodeJwtPayload(accessToken);
 const sub = typeof payload.sub === "string" ? payload.sub : "";

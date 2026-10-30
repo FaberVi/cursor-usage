@@ -2,6 +2,7 @@ import { existsSync } from "fs";
 import { apiLog } from "./cursor-api-logger";
 import type { AuthInfo, CursorHeaders } from "./cursor-api-types";
 import { getGlobalCursorDbPath, readCursorAuthValuesFromDb, type CursorAuthValues } from "./cursor-db-reader";
+import { openCursorAuthSecret } from "./cursor-safe-storage";
 import { invalidateSetupCache } from "./cursor-setup-cache";
 
 const AUTH_CACHE_TTL = 10_000;
@@ -49,9 +50,18 @@ export async function getCursorToken(): Promise<AuthInfo | null> {
     return null;
   }
 
-  const jwt = authValues["cursorAuth/accessToken"] ?? null;
-  if (!jwt) {
+  const stored = authValues["cursorAuth/accessToken"] ?? null;
+  if (!stored) {
     apiLog("No accessToken found in database");
+    return null;
+  }
+
+  let jwt: string;
+  try {
+    jwt = await openCursorAuthSecret(stored);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Could not decrypt sealed token";
+    apiLog(`Could not open accessToken: ${msg}`);
     return null;
   }
 
