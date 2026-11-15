@@ -295,6 +295,19 @@ export class UsageEventStore {
     return count;
   }
 
+  /**
+   * Drop rows older than `cutoffMs` and rebuild the file so the next sql.js
+   * open does not reload freed pages. Ordinary upserts do not vacuum.
+   */
+  purgeEventsBefore(cutoffMs: number): number {
+    if (!this.db) return 0;
+    this.db.run("DELETE FROM usage_events WHERE timestamp < ?", [cutoffMs]);
+    const removed = this.db.getRowsModified();
+    this.db.run("VACUUM");
+    this.flushPersist();
+    return removed;
+  }
+
   /** Flush pending debounced writes immediately (e.g. after manual refresh sync). */
   flushPersist(): void {
     if (this.persistTimer) {

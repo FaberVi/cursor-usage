@@ -22,6 +22,11 @@ describe("getBillingCycleCutoff", () => {
     const cutoff = getBillingCycleCutoff("2026-03-31T15:37:46.000Z", Date.UTC(2026, 2, 15));
     expect(cutoff).toBe(Date.parse("2026-02-28T15:37:46.000Z"));
   });
+
+  it("clamps a midnight March 31 reset to February 28", () => {
+    const cutoff = getBillingCycleCutoff("2026-03-31T00:00:00.000Z", Date.UTC(2026, 3, 1));
+    expect(cutoff).toBe(Date.parse("2026-02-28T00:00:00.000Z"));
+  });
 });
 
 describe("nextMonth", () => {

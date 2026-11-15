@@ -13,7 +13,7 @@ describe("getNextDailyBudgetResetMs", () => {
     expect(getNextDailyBudgetResetMs(now)).toBe(Date.UTC(2026, 6, 6, 0, 0, 0));
   });
 
-  it("returns the same day midnight when already at UTC midnight", () => {
+  it("returns the next midnight when the timestamp is already UTC midnight", () => {
     const now = Date.UTC(2026, 6, 5, 0, 0, 0);
     expect(getNextDailyBudgetResetMs(now)).toBe(Date.UTC(2026, 6, 6, 0, 0, 0));
   });

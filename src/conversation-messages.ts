@@ -159,9 +159,9 @@ export async function loadConversationMessages(
       }
     }
 
-    const headers = order.length > 0
+    const headers: BubbleHeader[] = order.length > 0
       ? order
-      : [...bubbleById.keys()].map((bubbleId) => ({ bubbleId }));
+      : [...bubbleById.keys()].map((bubbleId): BubbleHeader => ({ bubbleId }));
 
     const out: ConversationMessage[] = [];
     for (const header of headers) {

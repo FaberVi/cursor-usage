@@ -1,4 +1,5 @@
-import { local } from "./core.js";
+import { local, refs } from "./core.js";
+import { DEFAULT_EUR_USD_RATE } from "../../../src/dashboard-locale.ts";
 import { MESSAGES_EN } from "./i18n/en.js";
 import { MESSAGES_IT } from "./i18n/it.js";
 
@@ -119,6 +120,7 @@ export function applyStaticTranslations() {
   if (titleEl) titleEl.textContent = t("title");
 
   document.querySelectorAll("[data-i18n]").forEach((el) => {
+    if (el.id === "refresh-btn") return;
     const key = STATIC_I18N[el.dataset.i18n] || el.dataset.i18n;
     el.textContent = t(key);
   });
@@ -142,6 +144,13 @@ export function applyStaticTranslations() {
   if (currencySelect) {
     currencySelect.value = local.currency === "eur" ? "eur" : "usd";
     currencySelect.setAttribute("aria-label", t("currency"));
+    const eurOption = currencySelect.querySelector('option[value="eur"]');
+    if (eurOption) {
+      const fromState = refs.state?.eurPerUsd;
+      const rate = typeof fromState === "number" && fromState > 0 ? fromState : DEFAULT_EUR_USD_RATE;
+      eurOption.textContent = t("currencyEurOption").replace("{rate}", rate.toFixed(2));
+      eurOption.title = t("currencyEurHint");
+    }
   }
 
   const poolNote = document.getElementById("pool-chart-note");

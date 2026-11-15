@@ -12,10 +12,25 @@ type BunMatchers<T = unknown> = {
   toBeCloseTo(expected: number, precision?: number): void;
   toBeGreaterThan(expected: number): void;
   toBeGreaterThanOrEqual(expected: number): void;
+  toBeLessThan(expected: number): void;
+  toBeLessThanOrEqual(expected: number): void;
   toContain(expected: string): void;
   toMatch(expected: string | RegExp): void;
   toBeTruthy(): void;
+  toBeInstanceOf(expected: abstract new (...args: never[]) => unknown): void;
+  toHaveBeenCalled(): void;
+  toHaveBeenCalledTimes(times: number): void;
   not: BunMatchers<T>;
+};
+
+type BunMockFn = (...args: never[]) => unknown;
+
+type BunMock<T extends BunMockFn> = T & {
+  mockClear(): void;
+  mockRestore(): void;
+  mockResolvedValue(value: unknown): BunMock<T>;
+  mockResolvedValueOnce(value: unknown): BunMock<T>;
+  mockReturnValue(value: unknown): BunMock<T>;
 };
 
 declare module "bun:test" {
@@ -24,11 +39,14 @@ declare module "bun:test" {
   export function beforeEach(fn: () => void | Promise<void>): void;
   export function afterEach(fn: () => void | Promise<void>): void;
   export function expect<T>(value: T): BunMatchers<T>;
-  export function mock<T extends (...args: never[]) => unknown>(fn?: T): T;
+  export const mock: {
+    <T extends BunMockFn>(fn?: T): BunMock<T>;
+    module(specifier: string, factory: () => unknown): void;
+  };
   export function spyOn<T extends object, K extends keyof T>(
     object: T,
     method: K,
-  ): { mockRestore(): void };
+  ): T[K] extends BunMockFn ? BunMock<T[K]> : never;
 }
 
 declare module "bun:sqlite" {
@@ -37,8 +55,4 @@ declare module "bun:sqlite" {
     run(sql: string, ...params: unknown[]): unknown;
     close(): void;
   }
-}
-
-interface ImportMeta {
-  readonly dir: string;
 }

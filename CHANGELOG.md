@@ -4,6 +4,28 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-11-15
+
+### Added
+- Pricing catalog entries for **Claude Fable 5.2** ($8 / $10 cache write / $0.20 cache read / $40), **Gemini 4 Carbon** ($2 / $0.10 / $10, introductory through 2026-11-30), and **Gemini 4 Hydrogen** ($1.50 / $0.075 / $7.50), from [Cursor models & pricing](https://cursor.com/docs/models-and-pricing) (`lastUpdated` `2026-11-14`).
+- Live USD→EUR reference rate for EUR display (Frankfurter / ECB); falls back to **0.92** when offline.
+- Pool depletion forecasts use the mean pace of the **last seven finished UTC days** when spend-shaped history is available, with clearer “after reset” copy when a week of idle days means the pool likely will not exhaust.
+
+### Changed
+- Claude Fable 5.1 is hidden by default, matching the models table (Fable 5.2 replaces it).
+- Local usage events older than 60 days are deleted on refresh and left out of the API download and the dashboard. An open billing cycle that started earlier is kept. The database file is vacuumed so sql.js does not reload the freed pages.
+- Included request totals from events keep **one decimal** instead of rounding to an integer.
+- Theoretical cost estimates honor **GPT-5.6 Fast** long-context multipliers, **Claude Haiku 5.5** &gt;100k rates, and **Claude Sonnet 1M** &gt;200k input pricing.
+- Dashboard refresh loading uses a monotonic **loading sequence** and replays the correct spinner when the panel is shown again after a tab or focus change.
+- Background activity-history sync (up to 100 API pages) no longer keeps the main refresh spinner; only the separate “syncing activity history” line stays active.
+- The EUR fetch no longer blocks publishing usage or clearing the refresh spinner; the dashboard republishes when the rate arrives.
+- Removed unused **Playwright** dev dependency (Puppeteer remains for screenshot scripts).
+
+### Fixed
+- Refresh could look stuck after switching away from the dashboard while an update was running.
+- Dashboard state publish no longer aborts a queued history sync when the webview panel was already closed.
+- Depletion projection no longer applies an artificial floor during the first hour of a billing cycle.
+
 ## [1.0.8] - 2026-10-30
 
 ### Fixed

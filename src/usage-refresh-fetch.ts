@@ -8,16 +8,37 @@ import {
   type UsageEvent,
   type UsagePayload,
 } from "./cursor-api";
-import { MAX_STORE_SYNC_PAGES, MAX_USAGE_EVENT_PAGES } from "./cursor-api-utils";
+import { getBillingCycleCutoff, MAX_STORE_SYNC_PAGES, MAX_USAGE_EVENT_PAGES } from "./cursor-api-utils";
 import { dashboardNotice, type DashboardNotice } from "./dashboard-state";
 import { invalidateSetupCache } from "./cursor-setup-cache";
 import type { DashboardLocale } from "./dashboard-locale";
+import { refreshEurPerUsd } from "./eur-usd-rate";
 import { resolveGrokBotUsageWithCache } from "./grok-bot-usage-cache";
 import { t } from "./i18n";
 import { updateStatusBar } from "./status-bar-content";
 import { UsageEventStore } from "./usage-event-store";
 
-export const STORE_LOOKBACK_DAYS = 120;
+/** Local archive, API download, and dashboard load share this window. */
+export const EVENT_RETENTION_DAYS = 60;
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Oldest timestamp to keep. A billing cycle that started before the 60-day
+ * mark is kept in full; a missing or invalid reset uses only the 60-day mark.
+ */
+export function eventRetentionCutoffMs(now: number, resetsAt: string | null): number {
+  const retentionCutoff = now - EVENT_RETENTION_DAYS * DAY_MS;
+  if (!resetsAt) return retentionCutoff;
+  const resetAt = new Date(resetsAt);
+  if (Number.isNaN(resetAt.getTime())) return retentionCutoff;
+  return Math.min(retentionCutoff, getBillingCycleCutoff(resetsAt, now));
+}
+
+/** Whole days so an API start date computed from `now` is not after `cutoffMs`. */
+export function eventRetentionLookbackDays(now: number, cutoffMs: number): number {
+  return Math.ceil((now - cutoffMs) / DAY_MS);
+}
 
 type StatusBarContext = Parameters<typeof updateStatusBar>[1];
 
@@ -46,7 +67,7 @@ export type UsageRefreshState = {
 export type UsageRefreshHost = {
   log: (msg: string) => void;
   ensureEventStore: () => Promise<UsageEventStore>;
-  loadStoredEvents: () => Promise<UsageEvent[]>;
+  loadStoredEvents: (sinceMs: number) => Promise<UsageEvent[]>;
   refreshConversationTitles: (events: UsageEvent[]) => Promise<number>;
   locale: () => DashboardLocale;
   statusBarItem: () => vscode.StatusBarItem;
@@ -92,14 +113,27 @@ async function drainBackgroundEventHistorySync(runFullSync: () => Promise<void>)
   }
 }
 
+async function purgeStoredEvents(host: UsageRefreshHost, cutoffMs: number): Promise<void> {
+  try {
+    const store = await host.ensureEventStore();
+    const removed = store.purgeEventsBefore(cutoffMs);
+    if (removed > 0) {
+      host.log(`Purged ${removed} usage events older than the retention cutoff`);
+    }
+  } catch (err: unknown) {
+    host.log(`Usage event purge failed: ${failureMessage(err)}`);
+  }
+}
+
 function withoutIncompleteEventWarning(warnings: DashboardNotice[], locale: DashboardLocale): DashboardNotice[] {
   const incomplete = t(locale, "warningEventsIncomplete");
   return warnings.filter((warning) => warning.message !== incomplete);
 }
 
-/** Download the 120-day event history and replace or upsert the local archive. */
+/** Download the retained event history and replace or upsert the local archive. */
 export async function runEventHistorySync(state: UsageRefreshState, host: UsageRefreshHost): Promise<void> {
-  const storeSince = Date.now() - STORE_LOOKBACK_DAYS * 86_400_000;
+  const now = Date.now();
+  const cutoffMs = eventRetentionCutoffMs(now, state.lastData?.resetsAt ?? null);
   const locale = host.locale();
   state.fullHistoryAttempted = true;
   state.eventHistorySyncInProgress = true;
@@ -109,7 +143,7 @@ export async function runEventHistorySync(state: UsageRefreshState, host: UsageR
   try {
     const eventsResult = await fetchUsageEvents({
       maxPages: MAX_STORE_SYNC_PAGES,
-      lookbackDays: STORE_LOOKBACK_DAYS,
+      startDateMs: cutoffMs,
     });
     const warnings = withoutIncompleteEventWarning(state.lastWarnings, locale);
     let eventsComplete = eventsResult.complete && !eventsResult.truncated;
@@ -123,10 +157,11 @@ export async function runEventHistorySync(state: UsageRefreshState, host: UsageR
       );
     }
 
+    let storeWriteOk = false;
     try {
       const store = await host.ensureEventStore();
       if (eventsComplete) {
-        store.syncEventsFromApi(eventsResult.events, storeSince, {
+        store.syncEventsFromApi(eventsResult.events, cutoffMs, {
           allowEmpty: true,
           totalCovered: eventsResult.totalCovered,
         });
@@ -134,13 +169,17 @@ export async function runEventHistorySync(state: UsageRefreshState, host: UsageR
       } else {
         store.upsertEvents(eventsResult.events);
       }
-      state.lastEvents = await host.loadStoredEvents();
+      storeWriteOk = true;
     } catch (err: unknown) {
       const detail = err instanceof Error ? err.message : String(err);
       host.log(`Event store sync failed: ${detail}`);
       warnings.push(dashboardNotice(t(locale, "warningEventStoreSyncFailed"), detail));
       state.lastEvents = eventsResult.events;
       eventsComplete = false;
+    }
+    await purgeStoredEvents(host, cutoffMs);
+    if (storeWriteOk) {
+      state.lastEvents = await host.loadStoredEvents(cutoffMs);
     }
 
     await host.refreshConversationTitles(state.lastEvents ?? []);
@@ -158,6 +197,7 @@ export async function runEventHistorySync(state: UsageRefreshState, host: UsageR
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     host.log(`Background event history sync failed: ${msg}`);
+    await purgeStoredEvents(host, cutoffMs);
   } finally {
     state.eventHistorySyncInProgress = false;
     host.publishState();
@@ -180,19 +220,24 @@ export async function runUpdateUsage(
   const locale = host.locale();
   const warnings: DashboardNotice[] = [];
   let eventsComplete = true;
+  const now = Date.now();
+  const eurRefresh = refreshEurPerUsd();
 
   try {
-    const [dataResult, eventsResult] = await Promise.allSettled([
-      fetchUsageData(),
-      fetchUsageEvents({ maxPages: MAX_USAGE_EVENT_PAGES, lookbackDays: STORE_LOOKBACK_DAYS }),
-    ]);
-
+    const dataResult = await Promise.allSettled([fetchUsageData()]).then((results) => results[0]!);
     const data = dataResult.status === "fulfilled" ? dataResult.value : null;
     if (dataResult.status === "rejected") {
       host.log(`Usage data fetch failed: ${dataResult.reason}`);
     }
 
-    const resetsAtForSpend = data?.resetsAt ?? state.lastData?.resetsAt ?? null;
+    const resetsAt = data?.resetsAt ?? state.lastData?.resetsAt ?? null;
+    const cutoffMs = eventRetentionCutoffMs(now, resetsAt);
+    const lookbackDays = eventRetentionLookbackDays(now, cutoffMs);
+    const eventsResult = await Promise.allSettled([
+      fetchUsageEvents({ maxPages: MAX_USAGE_EVENT_PAGES, lookbackDays }),
+    ]).then((results) => results[0]!);
+
+    const resetsAtForSpend = resetsAt;
     try {
       state.lastDailySpend = await fetchDailySpendByCategory({ resetAtIso: resetsAtForSpend });
     } catch (err: unknown) {
@@ -222,15 +267,20 @@ export async function runUpdateUsage(
         eventsComplete = true;
         state.fullHistorySynced = true;
       }
+      let storeWriteOk = false;
       try {
         const store = await host.ensureEventStore();
         store.upsertEvents(apiEvents);
-        state.lastEvents = await host.loadStoredEvents();
+        storeWriteOk = true;
       } catch (err: unknown) {
         const detail = err instanceof Error ? err.message : String(err);
         host.log(`Event store sync failed: ${detail}`);
         warnings.push(dashboardNotice(t(locale, "warningEventStoreSyncFailed"), detail));
         state.lastEvents = apiEvents;
+      }
+      await purgeStoredEvents(host, cutoffMs);
+      if (storeWriteOk) {
+        state.lastEvents = await host.loadStoredEvents(cutoffMs);
       }
       await host.refreshConversationTitles(state.lastEvents ?? []);
     } else if (eventsResult.status === "rejected") {
@@ -239,6 +289,7 @@ export async function runUpdateUsage(
       warnings.push(
         dashboardNotice(t(locale, "warningEventsFetchFailed"), failureMessage(eventsResult.reason)),
       );
+      await purgeStoredEvents(host, cutoffMs);
     }
 
     state.lastWarnings = warnings;
@@ -294,5 +345,24 @@ export async function runUpdateUsage(
     host.publishState();
   } finally {
     state.lastFetchTime = Date.now();
+    publishSettledEurRate(eurRefresh, state, host);
   }
+}
+
+/** The FX request must not hold the refresh spinner. Republish when it settles. */
+function publishSettledEurRate(
+  eurRefresh: Promise<number>,
+  state: UsageRefreshState,
+  host: UsageRefreshHost,
+): void {
+  void eurRefresh.then(() => {
+    try {
+      if (state.lastData) {
+        updateStatusBar(state.lastData, host.statusBarContext());
+      }
+      host.publishState();
+    } catch (err: unknown) {
+      host.log(`EUR rate publish failed: ${failureMessage(err)}`);
+    }
+  });
 }

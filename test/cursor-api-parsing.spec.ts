@@ -334,6 +334,11 @@ describe("parseUsageEvent", () => {
         kind: "Included",
         isTokenBasedCall: false,
         requests: 2,
+        totalTokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
       }),
     ).toBe(2);
     expect(
@@ -341,6 +346,11 @@ describe("parseUsageEvent", () => {
         kind: "On-Demand",
         isTokenBasedCall: false,
         requests: 1.5,
+        totalTokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
       }),
     ).toBe(1.5);
   });
@@ -374,5 +384,19 @@ describe("enrichUsageFromEvents", () => {
     const enriched = enrichUsageFromEvents(base, events, Date.parse("2026-07-05T12:00:00.000Z"));
     expect(enriched.includedRequests.used).toBe(1);
     expect(enriched.includedRequests.limit).toBe(1);
+  });
+
+  it("keeps a fractional included total instead of rounding to an integer", () => {
+    const now = Date.parse("2026-07-05T12:00:00.000Z");
+    const legacy = (requests: number): UsageEvent => usageEvent({
+      timestamp: Date.parse("2026-07-04T12:00:00.000Z"),
+      model: "gpt-4",
+      kind: "Included",
+      totalTokens: 0,
+      requests,
+      isTokenBasedCall: false,
+    });
+    const enriched = enrichUsageFromEvents(base, [legacy(1.5), legacy(0.4)], now);
+    expect(enriched.includedRequests.used).toBe(1.9);
   });
 });

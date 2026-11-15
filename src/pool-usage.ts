@@ -3,7 +3,7 @@ import type { GrokBotUsage } from "./grok-bot-usage";
 import type { DashboardCurrency, DashboardLocale } from "./dashboard-locale";
 import { formatOnDemandStatus } from "./currency-format";
 import { t, tf } from "./i18n";
-import { computeRecommendedPoolUsage } from "./pool-usage-series";
+import { computeRecommendedPoolUsage, type PoolDayPace } from "./pool-usage-series";
 import { formatDailyBudgetResetCountdown } from "./daily-budget-reset";
 
 type ProgressBarRenderer = {

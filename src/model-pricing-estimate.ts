@@ -5,10 +5,12 @@ import { getDurationCutoff } from "./model-breakdown";
 import type {
   ComponentCostBreakdown,
   EstimateEventOptions,
+  LongContextPricing,
   ModelPricingEntry,
   TheoreticalModelCost,
   TokenRatesPerMillion,
 } from "./model-pricing-types";
+import { applyRateMultiplier } from "./model-pricing-match";
 import {
   getModelPricingCatalog,
   resolveModelPricing,
@@ -64,6 +66,33 @@ export function estimateComponentCost(
   };
 }
 
+function scaleCacheRates(rates: TokenRatesPerMillion, multiplier: number): TokenRatesPerMillion {
+  const scale = (value: number | undefined) =>
+    value === undefined ? undefined : value * multiplier;
+  return {
+    ...rates,
+    cacheWrite: scale(rates.cacheWrite),
+    cacheRead: scale(rates.cacheRead),
+  };
+}
+
+function applyLongContextRates(
+  rates: TokenRatesPerMillion,
+  longContext: LongContextPricing,
+): TokenRatesPerMillion {
+  let next = rates;
+  if (longContext.rateMultiplier) {
+    next = applyRateMultiplier(next, longContext.rateMultiplier);
+  }
+  if (longContext.inputMultiplier) {
+    next = applyRateMultiplier(next, longContext.inputMultiplier, true);
+  }
+  if (longContext.outputMultiplier && next.output !== undefined) {
+    next = { ...next, output: next.output * longContext.outputMultiplier };
+  }
+  return next;
+}
+
 export function estimateEventTheoreticalCost(
   event: Pick<
     UsageEvent,
@@ -79,11 +108,23 @@ export function estimateEventTheoreticalCost(
   opts: EstimateEventOptions = {},
 ): ComponentCostBreakdown {
   const resolved = resolveModelPricingDetailed(event.model, event.maxMode);
-  const rates = resolved?.effectiveRates ?? entry.rates;
+  const pricedEntry = resolved?.entry ?? entry;
+  let rates = resolved?.effectiveRates ?? entry.rates;
+  const longContext = pricedEntry.longContext ?? entry.longContext;
+  const inputTokens = event.inputTokens ?? 0;
+  if (longContext && inputTokens > longContext.aboveInputTokens) {
+    rates = applyLongContextRates(rates, longContext);
+    if (
+      longContext.fastCacheMultiplier &&
+      resolved?.variant?.priceImpact === "rateMultiplier"
+    ) {
+      rates = scaleCacheRates(rates, longContext.fastCacheMultiplier);
+    }
+  }
   return estimateComponentCost(
     rates,
     {
-      inputTokens: event.inputTokens ?? 0,
+      inputTokens,
       outputTokens: event.outputTokens ?? 0,
       cacheWriteTokens: event.cacheWriteTokens ?? 0,
       cacheReadTokens: event.cacheReadTokens ?? 0,

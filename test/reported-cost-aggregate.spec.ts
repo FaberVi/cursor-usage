@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { parseUsageEvent } from "../src/cursor-api";
+import { parseUsageEvent, type UsageEvent } from "../src/cursor-api";
 import {
   aggregateTheoreticalByModel,
   eventReportedUsageCostCents,
@@ -9,12 +9,14 @@ import {
 
 const fixturesDir = join(import.meta.dir, "fixtures");
 
-function loadUsageEventsFixture(): ReturnType<typeof parseUsageEvent>[] {
+function loadUsageEventsFixture(): UsageEvent[] {
   const raw = JSON.parse(
     readFileSync(join(fixturesDir, "usage-events-page1.json"), "utf8").replace(/^\uFEFF/, ""),
   ) as { usageEventsDisplay?: unknown[] };
   const events = raw.usageEventsDisplay ?? [];
-  return events.map((row) => parseUsageEvent(row)).filter((e): e is NonNullable<typeof e> => e !== null);
+  return events
+    .map((row) => parseUsageEvent(row))
+    .filter((e): e is UsageEvent => e !== null);
 }
 
 describe("reported usage cost (Cursor Included Usage alignment)", () => {

@@ -132,6 +132,7 @@ export function buildUsageOverviewMarkdown(
   events: UsageEvent[] = [],
   currency: DashboardCurrency = "usd",
   showPremiumRequests = true,
+  evenDailyShape = false,
 ): string {
   const { includedRequests, onDemand, poolUsage, grokBotUsage, resetsAt = null } = data;
   const summaryColumns = buildSummaryColumns(
@@ -148,7 +149,7 @@ export function buildUsageOverviewMarkdown(
   if (poolUsage) {
     md += buildPoolUsageMarkdown(poolUsage, renderProgressBar, locale, resetsAt ?? null, now);
     if (events.length > 0) {
-      const series = buildPoolUsageSeries(events, poolUsage, resetsAt ?? null, now);
+      const series = buildPoolUsageSeries(events, poolUsage, resetsAt ?? null, now, { evenDailyShape });
       if (series) {
         md += buildPoolTodayPaceMarkdown(series.todayAutoPace, series.todayApiPace, renderProgressBar, locale);
       }

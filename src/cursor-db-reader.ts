@@ -8,6 +8,8 @@ import {
   getSqlitePageSize,
   indexWalFile,
   readPage,
+  type CursorKvRow,
+  type CursorKvStore,
   type OpenSqlite,
   type SqliteValue,
   type WalIndex,

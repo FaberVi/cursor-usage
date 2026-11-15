@@ -6,6 +6,8 @@
   eventHistorySyncing: "Sync storico attivit\u00e0\u2026",
   language: "Lingua",
   currency: "Valuta",
+  currencyEurOption: "EUR (€, stima {rate})",
+  currencyEurHint: "Dollari convertiti con il cambio di riferimento BCE più recente. Non è la valuta della fattura Cursor.",
   perPage: "{size}/pagina",
   eventsPerPage: "Eventi per pagina",
   eventOne: "evento",
@@ -156,7 +158,7 @@
   helpIncludedPool:
     "Quota dei pool inclusi nel ciclo di fatturazione. Modelli first-party = modelli Cursor (Auto, Composer, Cursor Grok); API = modelli di altri provider scelti esplicitamente. Il totale \u00e8 il consumo combinato.",
   helpPoolDepletion:
-    "Data stimata in cui ogni pool raggiunge il 100% in base al consumo medio giornaliero dall'inizio del ciclo. Se il consumo resta uguale, \u00e8 quando il pool si esaurirebbe prima del reset.",
+    "Data stimata in cui ogni pool arriva al 100% se il ritmo recente resta uguale. Con lo storico eventi completo, il ritmo \u00e8 la media degli ultimi 7 giorni UTC gi\u00e0 chiusi; il giorno in corso \u00e8 escluso perch\u00e9 \u00e8 ancora aperto. Finch\u00e9 quello storico non c'\u00e8, il ritmo \u00e8 la media dall'inizio del ciclo.",
   helpPoolPace:
     "Budget giornaliero indicativo per distribuire il pool fino al reset. Bianco = usato oggi; zona chiara = budget ancora disponibile; segno = budget del giorno. Il testo indica quanto puoi ancora usare. Il budget giornaliero si rinnova a mezzanotte UTC; il countdown indica ore e minuti rimanenti.",
   helpBillingCycle:

@@ -1,6 +1,7 @@
 export type {
   ComponentCostBreakdown,
   EstimateEventOptions,
+  LongContextPricing,
   ModelPool,
   ModelPricingCatalog,
   ModelPricingEntry,

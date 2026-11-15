@@ -64,10 +64,8 @@ export class DashboardPanel {
   ): DashboardPanel {
   if (DashboardPanel.currentPanel) {
     DashboardPanel.currentPanel.updateCallbacks(onLocaleChange, onPreviewChange, getRefreshBusy);
-    if (getRefreshBusy?.()) {
-      DashboardPanel.currentPanel.postLoading(true);
-    }
     DashboardPanel.currentPanel.panel.reveal(vscode.ViewColumn.Active);
+    DashboardPanel.currentPanel.replayRefreshLoading();
     return DashboardPanel.currentPanel;
   }
 
@@ -106,6 +104,7 @@ export class DashboardPanel {
     usageFilter: "all",
   };
   private readonly conversationLoads = new Map<string, Promise<ConversationMessages>>();
+  private loadingSeq = 0;
 
   static getDashboardEventFilter(): DashboardEventFilter | null {
     return DashboardPanel.currentPanel?.dashboardPrefs ?? null;
@@ -129,6 +128,10 @@ export class DashboardPanel {
     this.panel.webview.html = this.renderHtml(panel.webview, context.extensionUri);
 
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
+    this.panel.onDidChangeViewState((event) => {
+      if (!event.webviewPanel.visible) return;
+      this.replayRefreshLoading();
+    }, null, this.disposables);
 
     this.panel.webview.onDidReceiveMessage(
       async (msg) => {
@@ -160,9 +163,9 @@ export class DashboardPanel {
           const previewEnabled = this.context.globalState.get<boolean>(CONVERSATION_PREVIEW_KEY) === true;
           this.panel.webview.postMessage({ type: "initPreview", enabled: previewEnabled });
           if (state) this.postState(state);
-          if (this.getRefreshBusy?.()) {
-            this.postLoading(true);
-          }
+          this.replayRefreshLoading();
+        } else if (msg.type === "resync") {
+          this.replayRefreshLoading();
         } else if (msg.type === "setLocale" && isDashboardLocale(msg.locale)) {
           await this.context.globalState.update(DASHBOARD_LOCALE_KEY, msg.locale);
           this.onLocaleChange?.(msg.locale);
@@ -280,12 +283,16 @@ export class DashboardPanel {
   }
 
   postState(state: DashboardState): void {
-    this.panel.webview.postMessage({
-      type: "state",
-      state,
-      locale: getDashboardLocale(this.context),
-      currency: getDashboardCurrency(this.context),
-    });
+    try {
+      void Promise.resolve(this.panel.webview.postMessage({
+        type: "state",
+        state,
+        locale: getDashboardLocale(this.context),
+        currency: getDashboardCurrency(this.context),
+      })).catch(() => {});
+    } catch {
+      // The panel was closed while a refresh was publishing. The sync keeps going.
+    }
   }
 
   postUiPreferences(preferences: DashboardUiPreferences): void {
@@ -296,8 +303,19 @@ export class DashboardPanel {
     this.panel.webview.postMessage({ type: "rangePreference", range });
   }
 
+  /** Push the extension's refresh flag. A hidden webview can drop the previous message. */
+  replayRefreshLoading(): void {
+    this.postLoading(this.getRefreshBusy?.() ?? false);
+  }
+
   postLoading(on: boolean): void {
-    this.panel.webview.postMessage({ type: "loading", on });
+    this.loadingSeq += 1;
+    const seq = this.loadingSeq;
+    try {
+      void Promise.resolve(this.panel.webview.postMessage({ type: "loading", on, seq })).catch(() => {});
+    } catch {
+      // The webview was disposed while a refresh was in flight. The next visible panel asks again.
+    }
   }
 
   postPreviewStatus(enabled: boolean, titleCount: number, conversationCount: number): void {

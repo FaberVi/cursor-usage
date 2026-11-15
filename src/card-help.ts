@@ -6,7 +6,7 @@ export const CARD_HELP = {
   includedPool:
     "Share of your included usage pools for the billing cycle. First-party models covers Cursor-built models (Auto, Composer, Cursor Grok); API covers models you choose from other providers. Total is the combined pool consumption.",
   poolDepletion:
-    "Estimated date each pool reaches 100% based on average daily consumption since the billing cycle started. If usage stays at the same rate, this is when the pool would run out before reset.",
+    "Estimated date each pool reaches 100% if the recent pace holds. With a complete event history, the pace is the average of the last 7 finished UTC days; today is left out because it is still open. Until that history exists, the pace is the average since the billing cycle started.",
   poolPace:
     "Indicative daily budget to spread pool usage evenly until billing reset. Residual shows how much you could still use today; a negative value means you exceeded today's budget. The daily budget renews at midnight UTC; the countdown shows hours and minutes until then.",
   billingCycle:

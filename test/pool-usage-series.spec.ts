@@ -83,6 +83,15 @@ describe("buildPoolUsageSeries", () => {
     expect(series.apiPercent.at(-1)).toBeCloseTo(20, 5);
   });
 
+  it("marks spend-weighted series and leaves the even fallback unmarked", () => {
+    const series = buildPoolUsageSeries(events, poolUsage, resetsAt, now)!;
+    expect(series.autoFromSpend).toBe(true);
+    expect(series.apiFromSpend).toBe(true);
+    const even = buildPoolUsageSeries(events, poolUsage, resetsAt, now, { evenDailyShape: true })!;
+    expect(even.autoFromSpend).toBe(false);
+    expect(even.apiFromSpend).toBe(false);
+  });
+
   it("allocates daily increments proportionally to included spend", () => {
     const series = buildPoolUsageSeries(events, poolUsage, resetsAt, now)!;
     expect(series.dailyAutoPercent[0]).toBeCloseTo(20, 5);
@@ -153,6 +162,26 @@ describe("buildPoolUsageSeries", () => {
     expect(firstAuto.residual).toBeCloseTo(firstAuto.allowance - firstAuto.used, 5);
     expect(series.todayAutoPace).toEqual(series.dailyAutoPace.at(-1) ?? null);
   });
+
+  it("does not count the reset midnight as an extra budget day", () => {
+    const midnightReset = "2026-08-02T00:00:00.000Z";
+    const series = buildPoolUsageSeries([], poolUsage, midnightReset, now)!;
+    const startDay = Date.UTC(2026, 6, 2);
+    const lastDay = Date.UTC(2026, 7, 1);
+    const totalCycleDays = Math.round((lastDay - startDay) / dayMs) + 1;
+    expect(series.dailyAutoPace[0]!.allowance).toBeCloseTo(100 / totalCycleDays, 4);
+    expect(totalCycleDays).toBe(31);
+  });
+
+  it("spreads a partial event snapshot evenly instead of assigning the whole percent to those days", () => {
+    const partial: UsageEvent[] = [
+      { ...baseEvent, timestamp: now, model: "default", spendCents: 50 },
+    ];
+    const series = buildPoolUsageSeries(partial, poolUsage, resetsAt, now, { evenDailyShape: true })!;
+    const evenShare = 60 / series.labels.length;
+    expect(series.dailyAutoPercent.every((value) => Math.abs(value - evenShare) < 1e-9)).toBeTrue();
+    expect(series.autoPercent.at(-1)).toBeCloseTo(60, 5);
+  });
 });
 
 describe("computeDailyPoolPacing", () => {
@@ -205,6 +234,20 @@ describe("projectPoolDepletion", () => {
     expect(estimate.auto.status).toBe("ok");
   });
 
+  it("uses the real elapsed fraction during the first hour", () => {
+    const cycleStart = getBillingCycleCutoff(resetsAt, now);
+    const early = cycleStart + 30 * 60_000;
+    const estimate = projectPoolDepletion(
+      { autoPercentUsed: 10, apiPercentUsed: 0, totalPercentUsed: 5 },
+      resetsAt,
+      early,
+    );
+    const elapsedDays = (early - cycleStart) / dayMs;
+    expect(elapsedDays).toBeLessThan(1 / 24);
+    expect(estimate.auto.avgDailyPercent).toBeCloseTo(10 / elapsedDays, 4);
+    expect(estimate.auto.status).toBe("ok");
+  });
+
   it("marks exhausted pools", () => {
     const estimate = projectPoolDepletion(
       { autoPercentUsed: 100, apiPercentUsed: 10, totalPercentUsed: 55 },
@@ -220,5 +263,88 @@ describe("projectPoolDepletion", () => {
     const estimate = projectPoolDepletion(slowUsage, resetsAt, now);
     expect(estimate.auto.status).toBe("after_reset");
     expect(estimate.api.status).toBe("after_reset");
+  });
+
+  it("projects from the last 7 finished days when spend history is complete", () => {
+    const later = Date.UTC(2026, 7, 19, 12, 0, 0);
+    const longReset = "2026-09-02T15:37:46.000Z";
+    const finished = [...Array(10).fill(1), ...Array(7).fill(4)];
+    const today = 2;
+    const daily = [...finished, today];
+    const current = finished.reduce((sum, value) => sum + value, 0) + today;
+    const history = {
+      dailyAutoPercent: daily,
+      dailyApiPercent: daily.map(() => 0),
+      autoFromSpend: true,
+      apiFromSpend: false,
+    };
+    const usage = { autoPercentUsed: current, apiPercentUsed: 0, totalPercentUsed: current / 2 };
+    const estimate = projectPoolDepletion(usage, longReset, later, history);
+    const cycle = projectPoolDepletion(usage, longReset, later);
+    expect(estimate.auto.avgDailyPercent).toBeCloseTo(4, 5);
+    const projected = later + ((100 - current) / 4) * dayMs;
+    expect(new Date(estimate.auto.projectedAtIso!).getTime()).toBeCloseTo(projected, -3);
+    expect(estimate.auto.avgDailyPercent).toBeGreaterThan(cycle.auto.avgDailyPercent);
+    expect(estimate.api.status).toBe("no_usage");
+  });
+
+  it("keeps the cycle average when the daily shape is not from spend", () => {
+    const later = Date.UTC(2026, 6, 20, 12, 0, 0);
+    const daily = [...Array(17).fill(1), 20];
+    const usage = { autoPercentUsed: 40, apiPercentUsed: 0, totalPercentUsed: 20 };
+    const estimate = projectPoolDepletion(usage, resetsAt, later, {
+      dailyAutoPercent: daily,
+      dailyApiPercent: daily,
+      autoFromSpend: false,
+      apiFromSpend: false,
+    });
+    const elapsedDays = (later - getBillingCycleCutoff(resetsAt, later)) / dayMs;
+    expect(estimate.auto.avgDailyPercent).toBeCloseTo(40 / elapsedDays, 4);
+  });
+
+  it("keeps the cycle average until two UTC days have finished", () => {
+    const estimate = projectPoolDepletion(poolUsage, resetsAt, now, {
+      dailyAutoPercent: [20, 40],
+      dailyApiPercent: [5, 15],
+      autoFromSpend: true,
+      apiFromSpend: true,
+    });
+    const elapsedDays = (now - cycleStart) / dayMs;
+    expect(estimate.auto.avgDailyPercent).toBeCloseTo(60 / elapsedDays, 4);
+  });
+
+  it("treats a week of finished idle days as a pace that will not exhaust the pool", () => {
+    const quietReset = "2026-08-15T00:00:00.000Z";
+    const quietNow = Date.UTC(2026, 6, 25, 0, 0, 0);
+    const usage = { autoPercentUsed: 60, apiPercentUsed: 0, totalPercentUsed: 30 };
+    const daily = [30, 30, 0, 0, 0, 0, 0, 0, 0, 0];
+    const estimate = projectPoolDepletion(usage, quietReset, quietNow, {
+      dailyAutoPercent: daily,
+      dailyApiPercent: daily.map(() => 0),
+      autoFromSpend: true,
+      apiFromSpend: false,
+    });
+    const cycle = projectPoolDepletion(usage, quietReset, quietNow);
+    expect(cycle.auto.status).toBe("ok");
+    expect(estimate.auto.status).toBe("after_reset");
+    expect(estimate.auto.avgDailyPercent).toBe(0);
+    expect(estimate.auto.projectedAtIso).toBeNull();
+  });
+
+  it("falls back to the cycle average when usage starts on the open day", () => {
+    const estimate = projectPoolDepletion(
+      { autoPercentUsed: 12, apiPercentUsed: 0, totalPercentUsed: 6 },
+      resetsAt,
+      now,
+      {
+        dailyAutoPercent: [0, 0, 0, 12],
+        dailyApiPercent: [0, 0, 0, 0],
+        autoFromSpend: true,
+        apiFromSpend: false,
+      },
+    );
+    const elapsedDays = (now - cycleStart) / dayMs;
+    expect(estimate.auto.avgDailyPercent).toBeCloseTo(12 / elapsedDays, 4);
+    expect(estimate.auto.status).toBe("ok");
   });
 });

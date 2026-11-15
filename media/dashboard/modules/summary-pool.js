@@ -37,7 +37,9 @@ function renderDepletionLine(label, projection, resetAtIso) {
   let valueText = "~" + formatProjectionDate(projection.projectedAtIso);
   if (projection.status === "after_reset") {
     const resetText = resetAtIso ? formatProjectionDate(resetAtIso) : t("rangeBilling");
-    valueText = resetText + " (" + formatProjectionDate(projection.projectedAtIso) + ")";
+    valueText = projection.projectedAtIso
+      ? resetText + " (" + formatProjectionDate(projection.projectedAtIso) + ")"
+      : resetText;
   }
 
   return (

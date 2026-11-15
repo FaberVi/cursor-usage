@@ -7,6 +7,10 @@ const DAY_MS = 86_400_000;
 
 /** Matches a displayed 100% (`formatPercent` rounds to one decimal). */
 const POOL_EXHAUSTED_PERCENT = 99.95;
+/** Finished UTC days used for the depletion pace. Today stays out because it is still open. */
+const RECENT_PACE_DAYS = 7;
+/** One finished day is a partial sample. Until then, use the cycle-to-date rate. */
+const MIN_FINISHED_DAYS = 2;
 
 export type PoolDayPace = {
   allowance: number;
@@ -27,6 +31,9 @@ export type PoolUsageSeries = {
   dailyApiPace: PoolDayPace[];
   todayAutoPace: PoolDayPace | null;
   todayApiPace: PoolDayPace | null;
+  /** Daily percents come from included spend, not an even fallback. */
+  autoFromSpend: boolean;
+  apiFromSpend: boolean;
 };
 
 export type PoolDepletionStatus = "ok" | "exhausted" | "no_usage" | "after_reset";
@@ -92,10 +99,11 @@ export function poolIncludedCostCents(event: UsageEvent): number {
 function countCycleDays(cycleStart: number, resetsAt: string | null): number {
   if (!resetsAt) return 30;
   const resetMs = new Date(resetsAt).getTime();
-  if (Number.isNaN(resetMs)) return 30;
+  if (Number.isNaN(resetMs) || resetMs <= cycleStart) return 30;
   const startDay = startOfUtcDay(cycleStart);
-  const resetDay = startOfUtcDay(resetMs);
-  return Math.max(Math.round((resetDay - startDay) / DAY_MS) + 1, 1);
+  // Half-open cycle [start, reset): a midnight reset is not an extra budget day.
+  const lastDay = startOfUtcDay(resetMs - 1);
+  return Math.max(Math.round((lastDay - startDay) / DAY_MS) + 1, 1);
 }
 
 export type PoolRecommendedUsage = {
@@ -139,6 +147,7 @@ export function buildPoolUsageSeries(
   poolUsage: NonNullable<UsagePayload["poolUsage"]>,
   resetsAt: string | null,
   now: number,
+  opts?: { evenDailyShape?: boolean },
 ): PoolUsageSeries | null {
   const cycleStart = getBillingCycleCutoff(resetsAt, now);
   const days = buildDayBuckets(cycleStart, now);
@@ -165,11 +174,17 @@ export function buildPoolUsageSeries(
   const totalAutoCost = autoCostByDay.reduce((sum, value) => sum + value, 0);
   const totalApiCost = apiCostByDay.reduce((sum, value) => sum + value, 0);
 
-  // When included spend events are missing but live % exists, assume even daily shape.
-  const autoWeights =
-    totalAutoCost > 0 ? autoCostByDay : autoCostByDay.map(() => (poolUsage.autoPercentUsed > 0 ? 1 : 0));
-  const apiWeights =
-    totalApiCost > 0 ? apiCostByDay : apiCostByDay.map(() => (poolUsage.apiPercentUsed > 0 ? 1 : 0));
+  // Missing spend, or a snapshot that does not cover the cycle, is an even daily shape.
+  // A partial download must not assign the whole live percent to the few days on hand.
+  const evenShape = opts?.evenDailyShape === true;
+  const autoFromSpend = !evenShape && totalAutoCost > 0;
+  const apiFromSpend = !evenShape && totalApiCost > 0;
+  const autoWeights = autoFromSpend
+    ? autoCostByDay
+    : autoCostByDay.map(() => (poolUsage.autoPercentUsed > 0 ? 1 : 0));
+  const apiWeights = apiFromSpend
+    ? apiCostByDay
+    : apiCostByDay.map(() => (poolUsage.apiPercentUsed > 0 ? 1 : 0));
   const totalAutoWeight = autoWeights.reduce((sum, value) => sum + value, 0);
   const totalApiWeight = apiWeights.reduce((sum, value) => sum + value, 0);
 
@@ -210,7 +225,43 @@ export function buildPoolUsageSeries(
     dailyApiPace,
     todayAutoPace: lastIndex >= 0 ? (dailyAutoPace[lastIndex] ?? null) : null,
     todayApiPace: lastIndex >= 0 ? (dailyApiPace[lastIndex] ?? null) : null,
+    autoFromSpend,
+    apiFromSpend,
   };
+}
+
+export type PoolDepletionHistory = {
+  dailyAutoPercent: readonly number[];
+  dailyApiPercent: readonly number[];
+  autoFromSpend: boolean;
+  apiFromSpend: boolean;
+};
+
+/** Mean of the last finished UTC days. The final bucket is the open day. */
+function recentFinishedDayRate(daily: readonly number[]): number | null {
+  if (daily.length < MIN_FINISHED_DAYS + 1) return null;
+  const finished = daily.slice(0, -1);
+  if (finished.length < MIN_FINISHED_DAYS) return null;
+  const window = finished.slice(-RECENT_PACE_DAYS);
+  let sum = 0;
+  for (const value of window) sum += value;
+  return sum / window.length;
+}
+
+function depletionPacePercent(
+  currentPct: number,
+  elapsedDays: number,
+  daily: readonly number[] | undefined,
+  fromSpend: boolean,
+): number {
+  const cycleRate = elapsedDays > 0 ? currentPct / elapsedDays : 0;
+  if (!fromSpend || !daily) return cycleRate;
+  const recent = recentFinishedDayRate(daily);
+  if (recent === null) return cycleRate;
+  const today = daily[daily.length - 1] ?? 0;
+  // A spike that started today is not visible in finished days yet.
+  if (recent <= 0 && today > 0) return cycleRate;
+  return recent;
 }
 
 function projectOnePool(
@@ -219,12 +270,13 @@ function projectOnePool(
   now: number,
   elapsedDays: number,
   resetAtMs: number | null,
+  avgDailyPercent: number,
 ): PoolDepletionProjection {
   if (currentPct >= 100) {
     return {
       pool,
       projectedAtIso: null,
-      avgDailyPercent: elapsedDays > 0 ? currentPct / elapsedDays : 0,
+      avgDailyPercent,
       status: "exhausted",
     };
   }
@@ -233,7 +285,10 @@ function projectOnePool(
     return { pool, projectedAtIso: null, avgDailyPercent: 0, status: "no_usage" };
   }
 
-  const avgDailyPercent = currentPct / elapsedDays;
+  if (avgDailyPercent <= 0) {
+    return { pool, projectedAtIso: null, avgDailyPercent: 0, status: "after_reset" };
+  }
+
   const daysRemaining = (100 - currentPct) / avgDailyPercent;
   const projectedAtMs = now + daysRemaining * DAY_MS;
 
@@ -258,13 +313,26 @@ export function projectPoolDepletion(
   poolUsage: NonNullable<UsagePayload["poolUsage"]>,
   resetsAt: string | null,
   now: number,
+  history?: PoolDepletionHistory,
 ): PoolDepletionEstimate {
   const cycleStart = getBillingCycleCutoff(resetsAt, now);
   const resetAtMs = resetsAt ? new Date(resetsAt).getTime() : null;
-  const elapsedDays = Math.max((now - cycleStart) / DAY_MS, 1 / 24);
+  const elapsedDays = Math.max((now - cycleStart) / DAY_MS, 0);
+  const autoRate = depletionPacePercent(
+    poolUsage.autoPercentUsed,
+    elapsedDays,
+    history?.dailyAutoPercent,
+    history?.autoFromSpend === true,
+  );
+  const apiRate = depletionPacePercent(
+    poolUsage.apiPercentUsed,
+    elapsedDays,
+    history?.dailyApiPercent,
+    history?.apiFromSpend === true,
+  );
 
   return {
-    auto: projectOnePool(poolUsage.autoPercentUsed, "auto", now, elapsedDays, resetAtMs),
-    api: projectOnePool(poolUsage.apiPercentUsed, "api", now, elapsedDays, resetAtMs),
+    auto: projectOnePool(poolUsage.autoPercentUsed, "auto", now, elapsedDays, resetAtMs, autoRate),
+    api: projectOnePool(poolUsage.apiPercentUsed, "api", now, elapsedDays, resetAtMs, apiRate),
   };
 }

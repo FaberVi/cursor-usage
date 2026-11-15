@@ -5,7 +5,7 @@ import type { DashboardCurrency, DashboardLocale } from "./dashboard-locale";
 import { formatOnDemandStatus } from "./currency-format";
 import { isOnDemandVisible } from "./on-demand";
 import { filterDashboardEvents } from "./dashboard-state";
-import { formatTokens } from "./format";
+import { formatRequestCount, formatTokens } from "./format";
 import { formatResetCountdown, t } from "./i18n";
 import {
   aggregateByModel,
@@ -50,6 +50,8 @@ export type StatusBarContext = {
   getDashboardEventFilter: () => Parameters<typeof filterDashboardEvents>[1];
   /** True while updateUsage (including background event sync) is in flight. */
   refreshing: boolean;
+  /** False while the local archive does not yet cover the billing cycle. */
+  eventsComplete?: boolean;
 };
 
 function statusBarLeadingIcon(refreshing: boolean): string {
@@ -80,7 +82,7 @@ function buildModelBreakdownTableMarkdown(
     lines.push(
       `  <tr>` +
       `<td align="left">${escapeHtml(formatModelLabel(row.model))}</td>` +
-      `<td align="right">${Math.round(row.requests)}</td>` +
+      `<td align="right">${formatRequestCount(row.requests)}</td>` +
       `<td align="right">${formatTokens(row.totalTokens)}</td>` +
       `<td align="right">${formatDollarsFromCents(row.spendCents, currency, locale)}</td>` +
       `</tr>`,
@@ -93,7 +95,7 @@ function buildModelBreakdownTableMarkdown(
   lines.push(
     `  <tr>` +
     `<td align="left"><strong>${t(locale, "total")}</strong></td>` +
-    `<td align="right"><strong>${Math.round(totalRequests)}</strong></td>` +
+    `<td align="right"><strong>${formatRequestCount(totalRequests)}</strong></td>` +
     `<td align="right"><strong>${formatTokens(totalTokens)}</strong></td>` +
     `<td align="right"><strong>${formatDollarsFromCents(totalSpendCents, currency, locale)}</strong></td>` +
     `</tr>`,
@@ -154,6 +156,7 @@ export function updateStatusBar(data: UsagePayload, ctx: StatusBarContext): void
     ctx.lastEvents ?? [],
     currency,
     showPremiumRequests,
+    ctx.eventsComplete === false,
   );
   md += `\n`;
 

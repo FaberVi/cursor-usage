@@ -1,4 +1,6 @@
 /// <reference path="../types/bun-test.d.ts" />
+import { readFileSync } from "fs";
+import { join } from "path";
 import { describe, expect, it } from "bun:test";
 import type { UsageEvent } from "../src/cursor-api-types";
 import {
@@ -128,6 +130,12 @@ describe("resolveModelPricing", () => {
       "deepseek-v4.1-flash-1017",
     );
     expect(resolveModelPricing("deepseek-v41-flash-1017-high")?.id).toBe("deepseek-v4.1-flash-1017");
+    const fable52 = resolveModelPricingDetailed("claude-fable-5-2-thinking-high");
+    expect(fable52?.entry.id).toBe("claude-fable-5-2");
+    expect(fable52?.effectiveRates).toEqual({ input: 8, cacheWrite: 10, cacheRead: 0.2, output: 40 });
+    expect(resolveModelPricing("claude-fable-5-1")?.hidden).toBe(true);
+    expect(resolveModelPricing("gemini-4-carbon")?.rates).toEqual({ input: 2, cacheRead: 0.1, output: 10 });
+    expect(resolveModelPricingDetailed("gemini-4-hydrogen-xhigh")?.entry.rates.output).toBe(7.5);
     expect(resolveModelPricingDetailed("deepseek-v41-flash-1017-high")?.variant?.id).toBe("high");
     expect(getModelPricingCatalog().plans.some((plan) => plan.id === "start")).toBe(true);
   });
@@ -387,5 +395,106 @@ describe("aggregateTheoreticalByModel", () => {
     expect(row!.actualSpendCents).toBe(0);
     expect(row!.theoreticalCents).toBeGreaterThan(0);
     expect(row!.deltaPercent).toBeNull();
+  });
+});
+
+function longContextCost(
+  model: string,
+  tokens: { input?: number; output?: number; cacheWrite?: number; cacheRead?: number },
+  maxMode = false,
+) {
+  const entry = resolveModelPricing(model);
+  expect(entry).not.toBeNull();
+  return estimateEventTheoreticalCost(
+    {
+      ...baseEvent,
+      model,
+      maxMode,
+      inputTokens: tokens.input ?? 0,
+      outputTokens: tokens.output ?? 0,
+      cacheWriteTokens: tokens.cacheWrite ?? 0,
+      cacheReadTokens: tokens.cacheRead ?? 0,
+    },
+    entry!,
+  );
+}
+
+describe("long-context theoretical cost", () => {
+  const million = {
+    input: 1_000_000,
+    output: 1_000_000,
+    cacheWrite: 1_000_000,
+    cacheRead: 1_000_000,
+  };
+
+  it("keeps the resolved rate at the exact input threshold", () => {
+    expect(longContextCost("claude-haiku-5-5", { input: 100_000 }).inputCents).toBeCloseTo(1, 5);
+    expect(longContextCost("claude-4-sonnet-1m", { input: 200_000 }).inputCents).toBeCloseTo(120, 5);
+    expect(longContextCost("gpt-5.6-sol-fast", { input: 272_000 }).inputCents).toBeCloseTo(217.6, 5);
+  });
+
+  it("applies Haiku 5× on every component above 100k input", () => {
+    const cost = longContextCost("claude-haiku-5-5", million);
+    expect(cost.inputCents).toBeCloseTo(50, 5);
+    expect(cost.cacheWriteCents).toBeCloseTo(62.5, 5);
+    expect(cost.cacheReadCents).toBeCloseTo(5, 5);
+    expect(cost.outputCents).toBeCloseTo(250, 5);
+    expect(cost.totalCents).toBeCloseTo(367.5, 5);
+  });
+
+  it("doubles only Sonnet 1M input above 200k, including in Max mode", () => {
+    const tokens = { input: 1_000_000, cacheWrite: 1_000_000, output: 1_000_000 };
+    const cost = longContextCost("claude-4-sonnet-1m", tokens, true);
+    expect(cost.inputCents).toBeCloseTo(1200, 5);
+    expect(cost.cacheWriteCents).toBeCloseTo(750, 5);
+    expect(cost.outputCents).toBeCloseTo(2250, 5);
+  });
+
+  it("scales GPT-5.6 Fast input, cache, and output above 272k", () => {
+    const sol = longContextCost("gpt-5.6-sol-fast", million);
+    expect(sol.inputCents).toBeCloseTo(1600, 5);
+    expect(sol.outputCents).toBeCloseTo(6000, 5);
+    expect(sol.cacheWriteCents).toBeCloseTo(2000, 5);
+    expect(sol.cacheReadCents).toBeCloseTo(160, 5);
+
+    const luna = longContextCost("gpt-5.6-luna-fast", million);
+    expect(luna.inputCents).toBeCloseTo(80, 5);
+    expect(luna.cacheWriteCents).toBeCloseTo(100, 5);
+    expect(luna.cacheReadCents).toBeCloseTo(8, 5);
+    expect(luna.outputCents).toBeCloseTo(360, 5);
+
+    const terra = longContextCost("gpt-5.6-terra-fast", million);
+    expect(terra.inputCents).toBeCloseTo(800, 5);
+    expect(terra.cacheWriteCents).toBeCloseTo(1000, 5);
+    expect(terra.cacheReadCents).toBeCloseTo(80, 5);
+    expect(terra.outputCents).toBeCloseTo(3600, 5);
+  });
+
+  it("leaves standard GPT-5.6 cache rates unchanged above 272k", () => {
+    const sol = longContextCost("gpt-5.6-sol", million);
+    expect(sol.inputCents).toBeCloseTo(800, 5);
+    expect(sol.outputCents).toBeCloseTo(3000, 5);
+    expect(sol.cacheWriteCents).toBeCloseTo(500, 5);
+    expect(sol.cacheReadCents).toBeCloseTo(40, 5);
+  });
+
+  it("stacks Max mode and the 272k input multiplier on Sol", () => {
+    const cost = longContextCost("gpt-5.6-sol", { input: 1_000_000 }, true);
+    expect(cost.inputCents).toBeCloseTo(1600, 5);
+    expect(cost.outputCents).toBeCloseTo(0, 5);
+  });
+
+  it("keeps Grok 4.7 long context on the separate 500k model", () => {
+    expect(longContextCost("grok-4.7", { input: 1_000_000 }).inputCents).toBeCloseTo(200, 5);
+    expect(longContextCost("grok-4-7-500k", { input: 1_000_000 }).inputCents).toBeCloseTo(400, 5);
+    expect(resolveModelPricing("grok-4.7")?.longContext).toBeUndefined();
+  });
+
+  it("prices event detail through the theoretical estimate", () => {
+    const source = readFileSync(
+      join(import.meta.dir, "../media/dashboard/modules/pricing-nav.js"),
+      "utf8",
+    );
+    expect(source).toContain("estimateEventTheoreticalCost(");
   });
 });

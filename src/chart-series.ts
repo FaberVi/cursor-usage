@@ -1,5 +1,5 @@
 /** Per-day usage chart series built from filtered events. */
-import type { UsageEvent } from "./cursor-api";
+import type { DailySpendRow, UsageEvent } from "./cursor-api";
 import { parseTimestamp } from "./cursor-api-utils";
 import { eventRequestCount, eventTokenCount } from "./cursor-usage-parsing";
 import { getDurationCutoff, type UsageDuration } from "./model-breakdown";

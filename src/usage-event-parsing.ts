@@ -3,6 +3,10 @@ import type { UsageEvent, UsagePayload } from "./cursor-api-types";
 import { asRecord, getBillingCycleCutoff, parseTimestamp, toNumber } from "./cursor-api-utils";
 import { getCachedMaxRequestUsage } from "./cursor-setup-cache";
 
+function roundRequestCount(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 function parseEventKind(kind: string): string {
   if (kind === "USAGE_EVENT_KIND_USAGE_BASED") return "On-Demand";
   if (kind === "USAGE_EVENT_KIND_ERRORED_NOT_CHARGED") return "Errored";
@@ -33,7 +37,7 @@ export function enrichUsageFromEvents(
   }
 
   const cachedLimit = getCachedMaxRequestUsage();
-  const used = data.includedRequests.used > 0 ? data.includedRequests.used : Math.round(includedUsed);
+  const used = data.includedRequests.used > 0 ? data.includedRequests.used : roundRequestCount(includedUsed);
   const limit =
     data.includedRequests.limit > 0
       ? data.includedRequests.limit

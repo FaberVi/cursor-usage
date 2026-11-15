@@ -5,6 +5,12 @@ import { DEFAULT_EUR_USD_RATE } from "../../../src/dashboard-locale.ts";
 import { eventRequestCount, eventTokenCount } from "../../../src/cursor-usage-parsing.ts";
 import { startOfUtcDay } from "../../../src/utc-day.ts";
 
+function eurPerUsd() {
+  const fromState = refs.state?.eurPerUsd;
+  if (typeof fromState === "number" && Number.isFinite(fromState) && fromState > 0) return fromState;
+  return DEFAULT_EUR_USD_RATE;
+}
+
 export { startOfUtcDay };
 
 export function getDurationCutoff(range, resetAtIso, now) {
@@ -47,7 +53,7 @@ export function formatMoney(amountUsd, options = {}) {
   const minFrac = options.minimumFractionDigits ?? 2;
   const maxFrac = options.maximumFractionDigits ?? 2;
   if (getActiveCurrency() === "eur") {
-    const eur = (amountUsd || 0) * DEFAULT_EUR_USD_RATE;
+    const eur = (amountUsd || 0) * eurPerUsd();
     return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: "EUR",
@@ -83,7 +89,7 @@ export function formatPlanPriceText(text) {
 
 export function toCsvMoney(amountUsd) {
   if (!Number.isFinite(amountUsd)) return "";
-  if (getActiveCurrency() === "eur") return (amountUsd * DEFAULT_EUR_USD_RATE).toFixed(4);
+  if (getActiveCurrency() === "eur") return (amountUsd * eurPerUsd()).toFixed(4);
   return amountUsd.toFixed(4);
 }
 

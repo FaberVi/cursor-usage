@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://cursor.com/docs/models-and-pricing",
-  "lastUpdated": "2026-10-27",
+  "lastUpdated": "2026-11-14",
   "cursorTokenRatePerMillion": 0.25,
   "plans": [
     {
@@ -261,6 +261,10 @@
         "cacheRead": 0.6,
         "output": 22.5
       },
+      "longContext": {
+        "aboveInputTokens": 200000,
+        "inputMultiplier": 2
+      },
       "hidden": true,
       "variants": [
         {
@@ -453,7 +457,39 @@
       "aliases": [
         "claude-fable-5-1"
       ],
-      "notes": "Requires data retention approval for Enterprise customers, Teams and individual customers with Privacy Mode enabled; Anthropic stores agent input and output data for harm-prevention processes; this data is not used to train or improve Anthropic models or products; Requests that trip a security guardrail are automatically routed to Claude Opus; Prompt-cache reads are $0.25/M, 75% below the standard cache-read rate; About 2.5x the cost of Claude Opus 5.5 on input and output; Requires Max Mode on legacy request-based plans"
+      "hidden": true,
+      "notes": "Hidden by default; Requires data retention approval for Enterprise customers, Teams and individual customers with Privacy Mode enabled; Anthropic stores agent input and output data for harm-prevention processes; this data is not used to train or improve Anthropic models or products; Requests that trip a security guardrail are automatically routed to Claude Opus; Prompt-cache reads are $0.25/M, 75% below the standard cache-read rate; About 2.5x the cost of Claude Opus 5.5 on input and output; Requires Max Mode on legacy request-based plans"
+    },
+    {
+      "id": "claude-fable-5-2",
+      "displayName": "Claude Fable 5.2",
+      "provider": "Anthropic",
+      "pool": "api",
+      "rates": {
+        "input": 8,
+        "cacheWrite": 10,
+        "cacheRead": 0.2,
+        "output": 40
+      },
+      "aliases": [
+        "claude-fable-5-2"
+      ],
+      "variants": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "aliases": [
+            "claude-fable-5-2-thinking",
+            "claude-fable-5-2-thinking-high",
+            "claude-fable-5-2-thinking-xhigh",
+            "claude-fable-5-2-thinking-max"
+          ],
+          "priceImpact": "sameRateMoreTokens",
+          "description": "Always-on thinking; effort changes token volume, not the $/M rate"
+        }
+      ],
+      "docsUrl": "https://cursor.com/docs/models/claude-fable-5-2",
+      "notes": "Requires data retention approval for Enterprise customers, Teams and individual customers with Privacy Mode enabled; Anthropic stores agent input and output data for harm-prevention processes; this data is not used to train or improve Anthropic models or products; Requests that trip a security guardrail are automatically routed to Claude Opus; 20% cheaper than Claude Fable 5.1 on input and output; About 2x the cost of Claude Opus 5.5 on input and output; Requires Max Mode on legacy request-based plans"
     },
     {
       "id": "claude-haiku-5-5",
@@ -470,6 +506,10 @@
         "claude-haiku-5.5",
         "claude-haiku-5-5"
       ],
+      "longContext": {
+        "aboveInputTokens": 100000,
+        "rateMultiplier": 5
+      },
       "variants": [
         {
           "id": "thinking",
@@ -1272,6 +1312,12 @@
       "aliases": [
         "gpt-5-6-luna"
       ],
+      "longContext": {
+        "aboveInputTokens": 272000,
+        "inputMultiplier": 2,
+        "outputMultiplier": 1.5,
+        "fastCacheMultiplier": 2
+      },
       "variants": [
         {
           "id": "medium",
@@ -1305,6 +1351,12 @@
       "aliases": [
         "gpt-5-6-sol"
       ],
+      "longContext": {
+        "aboveInputTokens": 272000,
+        "inputMultiplier": 2,
+        "outputMultiplier": 1.5,
+        "fastCacheMultiplier": 2
+      },
       "variants": [
         {
           "id": "fast",
@@ -1336,6 +1388,12 @@
       "aliases": [
         "gpt-5-6-terra"
       ],
+      "longContext": {
+        "aboveInputTokens": 272000,
+        "inputMultiplier": 2,
+        "outputMultiplier": 1.5,
+        "fastCacheMultiplier": 2
+      },
       "variants": [
         {
           "id": "medium",
@@ -1487,6 +1545,65 @@
       "aliases": [
         "gemini-4-argon"
       ]
+    },
+    {
+      "id": "gemini-4-carbon",
+      "displayName": "Gemini 4 Carbon",
+      "provider": "Google",
+      "pool": "api",
+      "rates": {
+        "input": 2,
+        "cacheRead": 0.1,
+        "output": 10
+      },
+      "aliases": [
+        "gemini-4-carbon"
+      ],
+      "variants": [
+        {
+          "id": "high",
+          "label": "High",
+          "aliases": [
+            "gemini-4-carbon-high",
+            "gemini-4-carbon-medium",
+            "gemini-4-carbon-low"
+          ],
+          "priceImpact": "sameRateMoreTokens",
+          "description": "Same $/M; effort changes reasoning tokens. Medium is the default"
+        }
+      ],
+      "docsUrl": "https://cursor.com/docs/models/gemini-4-carbon",
+      "notes": "Introductory pricing through November 30, 2026. From December 1, 2026: $4 input, $0.20 cache read, $20 output per 1M tokens"
+    },
+    {
+      "id": "gemini-4-hydrogen",
+      "displayName": "Gemini 4 Hydrogen",
+      "provider": "Google",
+      "pool": "api",
+      "rates": {
+        "input": 1.5,
+        "cacheRead": 0.075,
+        "output": 7.5
+      },
+      "aliases": [
+        "gemini-4-hydrogen"
+      ],
+      "variants": [
+        {
+          "id": "high",
+          "label": "High",
+          "aliases": [
+            "gemini-4-hydrogen-high",
+            "gemini-4-hydrogen-xhigh",
+            "gemini-4-hydrogen-medium",
+            "gemini-4-hydrogen-low"
+          ],
+          "priceImpact": "sameRateMoreTokens",
+          "description": "Same $/M; effort changes reasoning tokens. High is the default"
+        }
+      ],
+      "docsUrl": "https://cursor.com/docs/models/gemini-4-hydrogen",
+      "notes": "-"
     },
     {
       "id": "muse-wonder",

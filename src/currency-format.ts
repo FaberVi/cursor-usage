@@ -1,5 +1,5 @@
 import type { DashboardCurrency, DashboardLocale } from "./dashboard-locale";
-import { DEFAULT_EUR_USD_RATE } from "./dashboard-locale";
+import { getEurPerUsd } from "./eur-usd-rate";
 import type { OnDemandUsage } from "./on-demand";
 import { getOnDemandDisplaySpend } from "./on-demand";
 
@@ -18,7 +18,7 @@ export function formatMoney(
   const intlLocale = getIntlLocale(locale);
 
   if (currency === "eur") {
-    const eur = (amountUsd || 0) * DEFAULT_EUR_USD_RATE;
+    const eur = (amountUsd || 0) * getEurPerUsd();
     return new Intl.NumberFormat(intlLocale, {
       style: "currency",
       currency: "EUR",

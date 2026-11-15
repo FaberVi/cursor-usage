@@ -21,7 +21,7 @@ describe("dashboard security hardening", () => {
   it("embeds a CSP nonce on dashboard scripts", () => {
     const uri = (path: string) => ({ toString: () => path });
     const html = renderDashboardHtml(
-      { cspSource: "https://test-csp" } as { cspSource: string },
+      { cspSource: "https://test-csp" },
       {
         cssUri: uri("css") as never,
         jsUri: uri("js") as never,

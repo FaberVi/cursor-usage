@@ -1,3 +1,4 @@
+/// <reference path="../types/bun-test.d.ts" />
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
@@ -25,9 +26,10 @@ const soloSetup: SetupCache = {
     displayName: "Pro",
     tier: "Pro",
     accountType: "personal",
-    planKind: "pro",
+    planKind: "personal",
+    seatType: null,
     priceLabel: null,
-  } as SetupCache["planInfo"],
+  },
 };
 
 const ensureSetup = mock(async (): Promise<SetupCache | null> => soloSetup);
@@ -60,6 +62,7 @@ mock.module("../src/dashboard-panel", () => ({
         postStateCalls += 1;
       },
       postLoading: (on: boolean) => {
+        if (postLoadingThrows) throw new Error("webview disposed");
         postLoadingCalls += 1;
         postLoadingState = on;
       },
@@ -90,6 +93,7 @@ let usageDataRejected = false;
 let postStateCalls = 0;
 let postLoadingState: boolean | null = null;
 let postLoadingCalls = 0;
+let postLoadingThrows = false;
 let backgroundSyncBlocked: Promise<void> | null = null;
 let releaseBackgroundSync: (() => void) | null = null;
 let onBackgroundSyncBlocked: (() => void) | null = null;
@@ -198,13 +202,14 @@ describe("updateUsage force refresh", () => {
   let cleanupExtensionRefresh: () => void;
 
   const statusBarItem = { text: "$(pulse) Usage", show: () => {} } as vscode.StatusBarItem;
-  const outputChannel = { appendLine: () => {} } as vscode.OutputChannel;
+  const outputChannel = { appendLine: () => {} } as unknown as vscode.OutputChannel;
+  const globalStorageUri = { fsPath: "" };
   const extensionContext = {
     globalState: {
       get: () => false,
       update: async () => {},
     },
-    globalStorageUri: { fsPath: "" },
+    globalStorageUri,
     extensionPath: process.cwd(),
   } as unknown as vscode.ExtensionContext;
 
@@ -222,6 +227,7 @@ describe("updateUsage force refresh", () => {
     postStateCalls = 0;
     postLoadingState = null;
     postLoadingCalls = 0;
+    postLoadingThrows = false;
     backgroundSyncBlocked = null;
     releaseBackgroundSync = null;
     onBackgroundSyncBlocked = null;
@@ -231,7 +237,7 @@ describe("updateUsage force refresh", () => {
     releaseSecondFetch = null;
 
     storageDir = mkdtempSync(join(tmpdir(), "cursor-usage-ext-refresh-"));
-    extensionContext.globalStorageUri.fsPath = storageDir;
+    globalStorageUri.fsPath = storageDir;
 
     originalFetch = globalThis.fetch;
     originalSyncEventsFromApi = UsageEventStore.prototype.syncEventsFromApi;
@@ -240,7 +246,8 @@ describe("updateUsage force refresh", () => {
       syncEventsFromApiCalls += 1;
       if (backgroundSyncBlocked) {
         onBackgroundSyncBlocked?.();
-        return backgroundSyncBlocked.then(() => originalSyncEventsFromApi.apply(this, args));
+        void backgroundSyncBlocked.then(() => originalSyncEventsFromApi.apply(this, args));
+        return 0;
       }
       return originalSyncEventsFromApi.apply(this, args);
     };
@@ -290,7 +297,16 @@ describe("updateUsage force refresh", () => {
     expect(postLoadingCalls).toBeGreaterThanOrEqual(2);
   });
 
-  it("keeps status bar spinner during background event history sync", async () => {
+  it("clears the status bar spinner when the dashboard cannot take the loading message", async () => {
+    postLoadingThrows = true;
+    await updateUsage({ force: true });
+    const { waitForBackgroundEventSyncIdle } = await import("../src/usage-refresh-fetch");
+    await waitForBackgroundEventSyncIdle();
+    expect(statusBarItem.text.includes("$(pulse)")).toBeTrue();
+    expect(statusBarItem.text.includes("$(loading~spin)")).toBeFalse();
+  });
+
+  it("leaves the refresh spinner idle while the activity history sync continues", async () => {
     backgroundSyncBlocked = new Promise<void>((resolve) => {
       releaseBackgroundSync = resolve;
     });
@@ -298,8 +314,9 @@ describe("updateUsage force refresh", () => {
     const blockedSyncPromise = new Promise<void>((resolve) => {
       onBackgroundSyncBlocked = () => {
         blockedSyncReached = true;
-        expect(postLoadingState).toBe(true);
-        expect(statusBarItem.text.includes("$(loading~spin)")).toBeTrue();
+        expect(postLoadingState).toBe(false);
+        expect(statusBarItem.text.includes("$(loading~spin)")).toBeFalse();
+        expect(getDashboardState().eventHistorySyncInProgress).toBe(true);
         resolve();
       };
     });

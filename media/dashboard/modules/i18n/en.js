@@ -6,6 +6,8 @@
     eventHistorySyncing: "Syncing activity history\u2026",
     language: "Language",
     currency: "Currency",
+    currencyEurOption: "EUR (€, est. {rate})",
+    currencyEurHint: "USD converted with the latest ECB reference rate. This is not Cursor's invoice currency.",
     perPage: "{size}/page",
     eventsPerPage: "Events per page",
     eventOne: "event",
@@ -155,7 +157,7 @@
     helpIncludedPool:
       "Share of your included usage pools for the billing cycle. First-party models covers Cursor-built models (Auto, Composer, Cursor Grok); API covers models you choose from other providers. Total is the combined pool consumption.",
     helpPoolDepletion:
-      "Estimated date each pool reaches 100% based on average daily consumption since the billing cycle started. If usage stays at the same rate, this is when the pool would run out before reset.",
+      "Estimated date each pool reaches 100% if the recent pace holds. With a complete event history, the pace is the average of the last 7 finished UTC days; today is left out because it is still open. Until that history exists, the pace is the average since the billing cycle started.",
     helpPoolPace:
       "Indicative daily budget to spread pool usage evenly until billing reset. White = used today; shaded zone = budget still available; tick = today's allowance. Residual text shows how much you can still use. The daily budget renews at midnight UTC; the countdown shows hours and minutes until then.",
     helpBillingCycle:

@@ -62,6 +62,7 @@ describe("buildDashboardState", () => {
     expect(state.resetsAt).toBeNull();
     expect(state.warnings).toEqual([]);
     expect(state.eventsComplete).toBeTrue();
+    expect(state.eurPerUsd).toBe(0.92);
     expect(state.cardHelp.includedRequests).toContain("Legacy");
   });
 
@@ -129,8 +130,8 @@ describe("buildDashboardState", () => {
       resetsAt,
       poolUsage: { autoPercentUsed: 40, apiPercentUsed: 20, totalPercentUsed: 30 },
       planInfo: {
-        accountType: "individual",
-        planKind: "ultra",
+        accountType: "personal",
+        planKind: "personal",
         seatType: null,
         tier: "Ultra",
         priceLabel: null,
@@ -176,6 +177,23 @@ describe("buildDashboardState", () => {
     expect(withFilteredOnly.poolUsageSeries?.todayAutoPace?.used).toBeCloseTo(40, 5);
     expect(withFullPoolHistory.poolUsageSeries?.todayAutoPace?.used).toBeCloseTo(8, 5);
     expect(withFullPoolHistory.events).toEqual(recentOnly);
+
+    const incomplete = buildDashboardState(
+      poolData,
+      recentOnly,
+      [],
+      false,
+      null,
+      poolNow,
+      true,
+      {},
+      0,
+      recentOnly,
+      [],
+      false,
+    );
+    const incompleteDays = incomplete.poolUsageSeries?.labels.length ?? 1;
+    expect(incomplete.poolUsageSeries?.todayAutoPace?.used).toBeCloseTo(40 / incompleteDays, 5);
   });
 });
 

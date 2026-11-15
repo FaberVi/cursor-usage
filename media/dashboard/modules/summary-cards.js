@@ -1,5 +1,6 @@
 import { refs, ui } from "./core.js";
 import { cardHelpText, getDateLocale, t } from "./i18n.js";
+import { getBillingCycleCutoff } from "../../../src/cursor-api-utils.ts";
 import {
   escapeHtml,
   formatPercent,
@@ -13,11 +14,9 @@ function getBillingCycleMeta(resetAtIso) {
   if (!resetAtIso) return null;
   const reset = new Date(resetAtIso);
   if (Number.isNaN(reset.getTime())) return null;
-  const cycleStart = new Date(resetAtIso);
-  cycleStart.setMonth(cycleStart.getMonth() - 1);
-  const startMs = cycleStart.getTime();
-  const resetMs = reset.getTime();
   const now = rangeNow();
+  const startMs = getBillingCycleCutoff(resetAtIso, now);
+  const resetMs = reset.getTime();
   const totalMs = resetMs - startMs;
   if (totalMs <= 0) return null;
   const elapsedMs = Math.max(0, now - startMs);

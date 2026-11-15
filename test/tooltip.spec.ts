@@ -19,6 +19,7 @@ describe("buildUsageOverviewMarkdown", () => {
       includedRequests: { used: 500, limit: 500 },
       onDemand: { state: "limited", onDemandEnabled: true, spendDollars: 66.89, limitDollars: 200 },
       poolUsage: null,
+      grokBotUsage: null,
     };
     const markdown = buildUsageOverviewMarkdown(data, progressBar, "en");
 
@@ -42,6 +43,7 @@ describe("buildUsageOverviewMarkdown", () => {
       includedRequests: { used: 500, limit: 500 },
       onDemand: { state: "limited", onDemandEnabled: true, spendDollars: 66.89, limitDollars: 200 },
       poolUsage: null,
+      grokBotUsage: null,
     };
     const markdown = buildUsageOverviewMarkdown(data, progressBar, "en", Date.now(), [], "eur");
 
@@ -53,6 +55,7 @@ describe("buildUsageOverviewMarkdown", () => {
       includedRequests: { used: 500, limit: 500 },
       onDemand: { state: "unlimited", onDemandEnabled: true, spendDollars: 66.89, limitDollars: null },
       poolUsage: null,
+      grokBotUsage: null,
     };
     const markdown = buildUsageOverviewMarkdown(data, progressBar, "en");
 
@@ -76,6 +79,7 @@ describe("buildUsageOverviewMarkdown", () => {
       includedRequests: { used: 42, limit: 500 },
       onDemand: { state: "disabled", onDemandEnabled: false, spendDollars: 0, limitDollars: null },
       poolUsage: null,
+      grokBotUsage: null,
     };
     const markdown = buildUsageOverviewMarkdown(data, progressBar, "en");
 
@@ -98,6 +102,7 @@ describe("buildUsageOverviewMarkdown", () => {
         limitDollars: 0,
       },
       poolUsage: null,
+      grokBotUsage: null,
     };
     const markdown = buildUsageOverviewMarkdown(data, progressBar, "en");
 
@@ -111,6 +116,7 @@ describe("buildUsageOverviewMarkdown", () => {
       includedRequests: { used: 500, limit: 500 },
       onDemand: { state: "disabled", onDemandEnabled: false, spendDollars: 0, limitDollars: null },
       poolUsage: { autoPercentUsed: 46, apiPercentUsed: 4, totalPercentUsed: 31 },
+      grokBotUsage: null,
     };
     const markdown = buildUsageOverviewMarkdown(data, progressBar, "en", Date.now(), [], "usd", false);
 
@@ -126,6 +132,7 @@ describe("buildUsageOverviewMarkdown", () => {
       includedRequests: { used: 2000, limit: 2000 },
       onDemand: { state: "limited", onDemandEnabled: true, spendDollars: 12.5, limitDollars: 100 },
       poolUsage: { autoPercentUsed: 61, apiPercentUsed: 100, totalPercentUsed: 80 },
+      grokBotUsage: null,
     };
     const markdown = buildUsageOverviewMarkdown(data, progressBar, "en", Date.now(), [], "usd", false);
 
@@ -184,6 +191,7 @@ describe("buildUsageOverviewMarkdown", () => {
       includedRequests: { used: 500, limit: 500 },
       onDemand: { state: "disabled", onDemandEnabled: false, spendDollars: 0, limitDollars: null },
       poolUsage: { autoPercentUsed: 61.4, apiPercentUsed: 3.7, totalPercentUsed: 40.4 },
+      grokBotUsage: null,
       resetsAt,
     };
     const markdown = buildUsageOverviewMarkdown(data, progressBar, "en", now, events, "usd", false);
@@ -193,6 +201,44 @@ describe("buildUsageOverviewMarkdown", () => {
     expect(markdown).toMatch(/Resets in (\d+h \d+m|\d+m)/);
     expect(markdown).not.toContain("Recommended pace");
     expect(markdown).not.toContain("Today's suggested pace");
+  });
+});
+
+describe("buildUsageOverviewMarkdown pace", () => {
+  it("spreads today's budget evenly when the event history is incomplete", () => {
+    const now = Date.UTC(2026, 6, 5, 12, 0, 0);
+    const data: UsageOverviewData = {
+      includedRequests: { used: 0, limit: 0 },
+      onDemand: { state: "disabled", onDemandEnabled: false, spendDollars: 0, limitDollars: null },
+      poolUsage: { autoPercentUsed: 4, apiPercentUsed: 0, totalPercentUsed: 2 },
+      grokBotUsage: null,
+      resetsAt: "2026-08-02T15:37:46.000Z",
+    };
+    const events: UsageEvent[] = [
+      {
+        timestamp: now,
+        model: "default",
+        kind: "Included",
+        totalTokens: 1000,
+        requests: 1,
+        spendCents: 50,
+        maxMode: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+        tokenCostCents: 0,
+        cursorTokenFee: 0,
+        isTokenBasedCall: false,
+        isHeadless: false,
+        isChargeable: true,
+        conversationId: null,
+      },
+    ];
+    const even = buildUsageOverviewMarkdown(data, progressBar, "en", now, events, "usd", false, true);
+    const weighted = buildUsageOverviewMarkdown(data, progressBar, "en", now, events, "usd", false, false);
+    expect(even).toContain("left today");
+    expect(weighted).toContain("over budget");
   });
 });
 
@@ -209,6 +255,7 @@ describe("buildUsageByModelHeadingMarkdown", () => {
       includedRequests: { used: 42, limit: 500 },
       onDemand: { state: "disabled", onDemandEnabled: false, spendDollars: 0, limitDollars: null },
       poolUsage: null,
+      grokBotUsage: null,
     };
     const markdown = buildUsageOverviewMarkdown(data, progressBar, "it");
 

@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TypeScript tsconfig (offline, cursor-usage)",
+  "type": "object",
+  "properties": {
+    "compilerOptions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "include": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "exclude": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "extends": { "type": "string" },
+    "references": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    }
+  },
+  "additionalProperties": true
+}

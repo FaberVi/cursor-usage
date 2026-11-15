@@ -29,6 +29,18 @@ export type ModelPricingVariant = {
   requiresMaxMode?: boolean;
 };
 
+export type LongContextPricing = {
+  aboveInputTokens: number;
+  rateMultiplier?: number;
+  inputMultiplier?: number;
+  outputMultiplier?: number;
+  /**
+   * Extra cache write/read multiplier on top of an already-scaled Fast variant.
+   * Cursor bills GPT-5.6 Fast long context at 2× the Fast cache rates.
+   */
+  fastCacheMultiplier?: number;
+};
+
 export type ModelPricingEntry = {
   id: string;
   displayName: string;
@@ -37,6 +49,7 @@ export type ModelPricingEntry = {
   rates: TokenRatesPerMillion;
   aliases?: string[];
   variants?: ModelPricingVariant[];
+  longContext?: LongContextPricing;
   hidden?: boolean;
   notes?: string;
   docsUrl?: string;

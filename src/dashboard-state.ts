@@ -1,5 +1,6 @@
 import type { DailySpendRow, UsageEvent, UsagePayload } from "./cursor-api";
 import { CARD_HELP } from "./card-help";
+import { getEurPerUsd } from "./eur-usd-rate";
 import { getDurationCutoff, type UsageDuration } from "./model-breakdown";
 import { eventRequestCount, eventTokenCount } from "./cursor-usage-parsing";
 import {
@@ -79,6 +80,8 @@ export type DashboardState = {
   warnings: DashboardNotice[];
   eventsComplete: boolean;
   eventHistorySyncInProgress: boolean;
+  /** USD to EUR multiplier used for display. Falls back to the bundled rate until a refresh. */
+  eurPerUsd: number;
 };
 
 
@@ -125,6 +128,12 @@ export function buildDashboardState(
     },
   );
 
+  const poolUsageSeries = poolUsage
+    ? buildPoolUsageSeries(eventsForPool, poolUsage, resetsAt, now, {
+        evenDailyShape: !eventsComplete,
+      })
+    : null;
+
   return {
     generatedAt: now,
     data,
@@ -134,8 +143,10 @@ export function buildDashboardState(
     isTeamMember,
     showPremiumRequests,
     quotaAwareEventDisplay,
-    poolUsageSeries: poolUsage ? buildPoolUsageSeries(eventsForPool, poolUsage, resetsAt, now) : null,
-    poolDepletion: poolUsage ? projectPoolDepletion(poolUsage, resetsAt, now) : null,
+    poolUsageSeries,
+    poolDepletion: poolUsage
+      ? projectPoolDepletion(poolUsage, resetsAt, now, poolUsageSeries ?? undefined)
+      : null,
     poolRecommended: poolUsage ? computeRecommendedPoolUsage(resetsAt, now) : null,
     modelPricing: {
       catalog,
@@ -153,6 +164,7 @@ export function buildDashboardState(
     warnings,
     eventsComplete,
     eventHistorySyncInProgress,
+    eurPerUsd: getEurPerUsd(),
   };
 }
 

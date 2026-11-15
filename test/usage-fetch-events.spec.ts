@@ -195,4 +195,29 @@ describe("fetchUsageEvents", () => {
     expect(result.truncated).toBe(false);
     expect(result.totalCovered).toBe(true);
   });
+
+  it("sends startDateMs and ignores lookbackDays", async () => {
+    let startDate = "";
+    globalThis.fetch = async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { startDate: string };
+      startDate = body.startDate;
+      return new Response(JSON.stringify({ usageEventsDisplay: [] }), { status: 200 });
+    };
+    const startDateMs = 1_700_000_000_000;
+    await fetchUsageEvents({ startDateMs, lookbackDays: 7, maxPages: 1 });
+    expect(startDate).toBe(String(startDateMs));
+  });
+
+  it("keeps the lookback window when startDateMs is absent", async () => {
+    let startDate = 0;
+    let endDate = 0;
+    globalThis.fetch = async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { startDate: string; endDate: string };
+      startDate = Number(body.startDate);
+      endDate = Number(body.endDate);
+      return new Response(JSON.stringify({ usageEventsDisplay: [] }), { status: 200 });
+    };
+    await fetchUsageEvents({ lookbackDays: 7, maxPages: 1 });
+    expect(endDate - startDate).toBe(7 * 86_400_000);
+  });
 });

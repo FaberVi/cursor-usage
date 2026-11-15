@@ -1,4 +1,5 @@
 {
+  "$schema": ".vscode/schemas/tsconfig.schema.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
     "target": "ES2022",

@@ -24,7 +24,6 @@ import {
   requestBackgroundEventHistorySync,
   runEventHistorySync,
   runUpdateUsage,
-  STORE_LOOKBACK_DAYS,
   type UsageRefreshHost,
   type UsageRefreshState,
 } from "./usage-refresh-fetch";
@@ -66,7 +65,7 @@ const DEBOUNCE_MS = 30_000;
 
 export type UpdateUsageOptions = {
   force?: boolean;
-  /** Full 120-day / 100-page event store sync (background; skips usage API refetch). */
+  /** Full retained-window / 100-page event store sync (background; skips usage API refetch). */
   fullEventSync?: boolean;
 };
 
@@ -123,7 +122,10 @@ export function scheduleRefresh(): void {
 }
 
 export function refreshOnFocus(state: vscode.WindowState): void {
-  if (state.focused && Date.now() - usageState.lastFetchTime >= getCooldownMs()) {
+  if (!state.focused) return;
+  syncStatusBarRefreshIcon();
+  DashboardPanel.currentPanel?.replayRefreshLoading();
+  if (Date.now() - usageState.lastFetchTime >= getCooldownMs()) {
     updateUsage();
   }
 }
@@ -176,12 +178,11 @@ export async function handleConversationPreviewChange(previewEnabled: boolean): 
   DashboardPanel.currentPanel?.postState(getDashboardState());
 }
 
-async function loadStoredEvents(): Promise<UsageEvent[]> {
+async function loadStoredEvents(sinceMs: number): Promise<UsageEvent[]> {
   const store = await ensureEventStore();
   storedEventCount = store.getEventCount();
   grokBotStoredEventCount = store.getGrokBotEventCount();
-  const since = Date.now() - STORE_LOOKBACK_DAYS * 86_400_000;
-  return store.getEventsSince(since);
+  return store.getEventsSince(sinceMs);
 }
 
 function buildStatusBarContext(): StatusBarContext {
@@ -195,6 +196,7 @@ function buildStatusBarContext(): StatusBarContext {
     lastDailySpend: usageState.lastDailySpend,
     getDashboardEventFilter: DashboardPanel.getDashboardEventFilter,
     refreshing: refreshBusyDepth > 0,
+    eventsComplete: usageState.lastEventsComplete,
   };
 }
 
@@ -214,7 +216,12 @@ function usageRefreshHost(): UsageRefreshHost {
     statusBarItem: () => statusBarItem,
     statusBarContext: buildStatusBarContext,
     publishState: () => {
-      DashboardPanel.currentPanel?.postState(getDashboardState());
+      try {
+        DashboardPanel.currentPanel?.postState(getDashboardState());
+      } catch (err: unknown) {
+        const detail = err instanceof Error ? err.message : String(err);
+        log(`Dashboard state update failed: ${detail}`);
+      }
     },
     globalState: () => extensionContext.globalState,
   };
@@ -222,8 +229,12 @@ function usageRefreshHost(): UsageRefreshHost {
 
 function setRefreshButtonBusy(on: boolean): void {
   const panel = DashboardPanel.currentPanel;
-  if (panel && typeof panel.postLoading === "function") {
+  if (!panel || typeof panel.postLoading !== "function") return;
+  try {
     panel.postLoading(on);
+  } catch (err: unknown) {
+    const detail = err instanceof Error ? err.message : String(err);
+    log(`Dashboard loading update failed: ${detail}`);
   }
 }
 
@@ -253,13 +264,21 @@ function beginRefreshBusy(): void {
   }
 }
 
+function syncStatusBarRefreshIcon(): void {
+  if (refreshBusyDepth > 0) {
+    applyStatusBarRefreshingVisual();
+    return;
+  }
+  if (usageState.lastData) {
+    setStatusBarLeadingIcon("$(pulse)");
+  }
+}
+
 function endRefreshBusy(): void {
   refreshBusyDepth = Math.max(0, refreshBusyDepth - 1);
   if (refreshBusyDepth === 0) {
+    syncStatusBarRefreshIcon();
     setRefreshButtonBusy(false);
-    if (usageState.lastData) {
-      setStatusBarLeadingIcon("$(pulse)");
-    }
   }
 }
 
@@ -268,21 +287,27 @@ export function isUsageRefreshBusy(): boolean {
 }
 
 export async function updateUsage(opts?: UpdateUsageOptions): Promise<void> {
-  beginRefreshBusy();
+  // The archive sync keeps its own "syncing history" line. It must not hold the refresh spinner.
+  const quiet = opts?.fullEventSync === true;
+  if (!quiet) beginRefreshBusy();
+  let startHistorySync = false;
   try {
-    await runUpdateUsageCycle(opts);
+    startHistorySync = await runUpdateUsageCycle(opts);
   } finally {
-    endRefreshBusy();
+    if (!quiet) endRefreshBusy();
+  }
+  if (startHistorySync) {
+    requestBackgroundEventHistorySync(() => updateUsage({ fullEventSync: true }));
   }
 }
 
-async function runUpdateUsageCycle(opts?: UpdateUsageOptions): Promise<void> {
+async function runUpdateUsageCycle(opts?: UpdateUsageOptions): Promise<boolean> {
   const force = opts?.force ?? false;
   const fullEventSync = opts?.fullEventSync ?? false;
   if (fetchPromise) {
     if (!force && !fullEventSync) {
       queuedNonForce = true;
-      return;
+      return false;
     }
     if (force && !fullEventSync) {
       queuedForce = true;
@@ -293,10 +318,7 @@ async function runUpdateUsageCycle(opts?: UpdateUsageOptions): Promise<void> {
     while (fetchPromise) {
       await fetchPromise;
     }
-    if (fullEventSync) {
-      return;
-    }
-    return;
+    return false;
   }
 
   const host = usageRefreshHost();
@@ -314,13 +336,18 @@ async function runUpdateUsageCycle(opts?: UpdateUsageOptions): Promise<void> {
     queuedForce = false;
     queuedNonForce = false;
     await updateUsage({ force: true });
-  } else if (queuedNonForce) {
+    return false;
+  }
+  if (queuedNonForce) {
     queuedNonForce = false;
     await updateUsage();
-  } else if ((force || usageState.quickFetchTruncated) && !fullEventSync) {
-    usageState.quickFetchTruncated = false;
-    requestBackgroundEventHistorySync(() => updateUsage({ fullEventSync: true }));
+    return false;
   }
+  if ((force || usageState.quickFetchTruncated) && !fullEventSync) {
+    usageState.quickFetchTruncated = false;
+    return true;
+  }
+  return false;
 }
 
 export async function showDetails(): Promise<void> {

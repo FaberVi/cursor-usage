@@ -1,6 +1,6 @@
 import { local, persistLocal, switchMainTab, ui, vscode } from "./core.js";
 import {
-  estimateComponentCost,
+  estimateEventTheoreticalCost,
   resolveModelPricing,
   resolveModelPricingDetailed,
 } from "../../../src/model-pricing.ts";
@@ -183,15 +183,6 @@ export function bindPricingHandlers() {
 export function getEventPricingEstimate(event) {
   const resolved = resolveModelPricingDetailed(event.model, !!event.maxMode);
   if (!resolved) return null;
-  const breakdown = estimateComponentCost(
-    resolved.effectiveRates,
-    {
-      inputTokens: event.inputTokens || 0,
-      outputTokens: event.outputTokens || 0,
-      cacheWriteTokens: event.cacheWriteTokens || 0,
-      cacheReadTokens: event.cacheReadTokens || 0,
-    },
-    getEstimateOpts(),
-  );
+  const breakdown = estimateEventTheoreticalCost(event, resolved.entry, getEstimateOpts());
   return { entry: resolved.entry, variant: resolved.variant, breakdown };
 }

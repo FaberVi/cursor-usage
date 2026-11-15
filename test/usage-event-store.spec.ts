@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync } from "fs";
+import { mkdtempSync, rmSync, statSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { normalizeUsageEventRequests } from "../src/cursor-usage-parsing";
@@ -359,6 +359,47 @@ describe("UsageEventStore", () => {
     expect(store.getGrokBotEventCount()).toBe(2);
 
     store.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("purges events before the cutoff, shrinks the file, and keeps the boundary row", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cursor-usage-store-"));
+    const dbPath = join(dir, "usage-events.sqlite");
+    const store = new UsageEventStore(dir, extensionPath);
+    await store.init();
+
+    const cutoffMs = 1_700_000_000_000;
+    store.upsertEvents([
+      usageEvent({
+        timestamp: cutoffMs,
+        model: "kept",
+        kind: "Included",
+        totalTokens: 10,
+        spendCents: 1,
+      }),
+      usageEvent({
+        timestamp: cutoffMs - 1,
+        model: "old",
+        kind: "Included",
+        totalTokens: 10,
+        spendCents: 1,
+        conversationId: "x".repeat(80_000),
+      }),
+    ]);
+    store.flushPersist();
+    const sizeBefore = statSync(dbPath).size;
+
+    expect(store.purgeEventsBefore(cutoffMs)).toBe(1);
+    expect(statSync(dbPath).size).toBeLessThan(sizeBefore);
+
+    store.close();
+    const reopened = new UsageEventStore(dir, extensionPath);
+    await reopened.init();
+    const events = reopened.getEventsSince(0);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.model).toBe("kept");
+
+    reopened.close();
     rmSync(dir, { recursive: true, force: true });
   });
 });

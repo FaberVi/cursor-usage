@@ -270,6 +270,13 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+let lastLoadingSeq = 0;
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  vscode.postMessage({ type: "resync" });
+});
+
 window.addEventListener("message", (event) => {
   const msg = event.data;
   if (!msg || typeof msg !== "object") return;
@@ -315,8 +322,12 @@ window.addEventListener("message", (event) => {
     }
     persistLocal();
     setState(msg.state);
+    applyStaticTranslations();
     renderAll();
   } else if (msg.type === "loading") {
+    const seq = typeof msg.seq === "number" ? msg.seq : 0;
+    if (seq > 0 && seq < lastLoadingSeq) return;
+    if (seq > 0) lastLoadingSeq = seq;
     setRefreshButtonLoading(!!msg.on);
   } else if (msg.type === "pricingSyncLoading") {
     if (ui.pricingRefreshBtn) {

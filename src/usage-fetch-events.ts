@@ -158,6 +158,8 @@ export async function fetchDailySpendByCategory(
 export type FetchUsageEventsOptions = {
   maxPages?: number;
   lookbackDays?: number;
+  /** Absolute API start. When set, lookbackDays is ignored. */
+  startDateMs?: number;
 };
 
 export type FetchUsageEventsResult = {
@@ -194,7 +196,9 @@ export async function fetchUsageEvents(opts: FetchUsageEventsOptions = {}): Prom
   const endDate = Date.now();
   const lookbackDays = opts.lookbackDays ?? 31;
   const maxPages = opts.maxPages ?? MAX_USAGE_EVENT_PAGES;
-  const startDate = endDate - lookbackDays * 86_400_000;
+  const startDate = Number.isFinite(opts.startDateMs)
+    ? opts.startDateMs!
+    : endDate - lookbackDays * 86_400_000;
   const pageSize = 500;
   let page = 1;
   const allEvents: UsageEvent[] = [];

@@ -21,7 +21,7 @@ function renderRangeSelector(id: string, scope: "chart" | "breakdown"): string {
 }
 
 export function renderDashboardHtml(
-  webview: vscode.Webview,
+  webview: Pick<vscode.Webview, "cspSource">,
   assets: DashboardAssetUris,
   nonce: string,
 ): string {

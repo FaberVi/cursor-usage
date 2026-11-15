@@ -51,7 +51,8 @@ describe("openCursorAuthSecret", () => {
     const key = randomBytes(32);
     const plaintext = "secret-jwt-value";
     const blob = gcmBlob(plaintext, key, randomBytes(12));
-    blob[blob.length - 1] ^= 0xff;
+    const lastIndex = blob.length - 1;
+    blob[lastIndex] = (blob[lastIndex] ?? 0) ^ 0xff;
     const sealed = seal(blob);
     try {
       await openCursorAuthSecret(sealed, { aes256Key: key });

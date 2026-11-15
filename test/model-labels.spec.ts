@@ -36,10 +36,11 @@ describe("buildPoolUsageMarkdown", () => {
 });
 
 describe("formatStatusBarUsageText", () => {
-  const base: Pick<UsagePayload, "includedRequests" | "onDemand" | "poolUsage"> = {
+  const base: Pick<UsagePayload, "includedRequests" | "onDemand" | "poolUsage" | "grokBotUsage"> = {
     includedRequests: { used: 2000, limit: 2000 },
     onDemand: { state: "limited", onDemandEnabled: true, spendDollars: 0, limitDollars: 50 },
     poolUsage: { autoPercentUsed: 33, apiPercentUsed: 12, totalPercentUsed: 31 },
+    grokBotUsage: null,
   };
 
   it("includes First-party models and API percentages after requests", () => {

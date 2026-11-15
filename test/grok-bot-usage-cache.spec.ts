@@ -1,22 +1,28 @@
 /// <reference path="../types/bun-test.d.ts" />
 import { describe, expect, it } from "bun:test";
+import type * as vscode from "vscode";
 import {
   isGrokBotUsageCacheValid,
   resolveGrokBotUsageWithCache,
   type StoredGrokBotUsage,
 } from "../src/grok-bot-usage-cache";
 
-function memento(initial: Record<string, unknown> = {}) {
+function memento(initial: Record<string, unknown> = {}): vscode.Memento {
   const store = new Map<string, unknown>(Object.entries(initial));
   return {
-    get<T>(key: string): T | undefined {
-      return store.get(key) as T | undefined;
+    keys(): readonly string[] {
+      return [...store.keys()];
+    },
+    get<T>(key: string, defaultValue?: T): T | undefined {
+      if (!store.has(key)) return defaultValue;
+      return store.get(key) as T;
     },
     update(key: string, value: unknown) {
-      store.set(key, value);
+      if (value === undefined) store.delete(key);
+      else store.set(key, value);
       return Promise.resolve();
     },
-  };
+  } as vscode.Memento;
 }
 
 describe("grok-bot-usage-cache", () => {
