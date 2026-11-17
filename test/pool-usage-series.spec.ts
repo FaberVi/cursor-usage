@@ -261,6 +261,17 @@ describe("projectPoolDepletion", () => {
     expect(estimate.auto.projectedAtIso).toBeNull();
   });
 
+  it("marks pools at the displayed 100% threshold as exhausted", () => {
+    const estimate = projectPoolDepletion(
+      { autoPercentUsed: 99.97, apiPercentUsed: 99.96, totalPercentUsed: 99.96 },
+      resetsAt,
+      now,
+    );
+    expect(estimate.auto.status).toBe("exhausted");
+    expect(estimate.api.status).toBe("exhausted");
+    expect(estimate.auto.projectedAtIso).toBeNull();
+  });
+
   it("marks projections that fall after billing reset", () => {
     const slowUsage = { autoPercentUsed: 5, apiPercentUsed: 2, totalPercentUsed: 3.5 };
     const estimate = projectPoolDepletion(slowUsage, resetsAt, now);

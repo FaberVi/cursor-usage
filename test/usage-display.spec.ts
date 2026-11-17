@@ -69,4 +69,25 @@ describe("isIncludedQuotaExhausted", () => {
       ),
     ).toBeFalse();
   });
+
+  it("treats the displayed 100% pool total as exhausted", () => {
+    expect(
+      isIncludedQuotaExhausted(
+        {
+          includedRequests: { used: 2000, limit: 2000 },
+          poolUsage: { autoPercentUsed: 60, apiPercentUsed: 99.96, totalPercentUsed: 99.97 },
+        },
+        false,
+      ),
+    ).toBeTrue();
+    expect(
+      isIncludedQuotaExhausted(
+        {
+          includedRequests: { used: 2000, limit: 2000 },
+          poolUsage: { autoPercentUsed: 60, apiPercentUsed: 80, totalPercentUsed: 99.94 },
+        },
+        false,
+      ),
+    ).toBeFalse();
+  });
 });

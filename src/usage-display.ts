@@ -1,5 +1,6 @@
 import type { PlanInfo } from "./plan-labels";
 import type { UsagePayload } from "./cursor-api-types";
+import { POOL_EXHAUSTED_PERCENT } from "./pool-usage-series";
 
 /**
  * Legacy request counters (used/limit) apply only to old personal plans without pool data.
@@ -22,5 +23,5 @@ export function isIncludedQuotaExhausted(
     const { used, limit } = data.includedRequests;
     return limit > 0 && used >= limit;
   }
-  return (data.poolUsage?.totalPercentUsed ?? 0) >= 100;
+  return (data.poolUsage?.totalPercentUsed ?? 0) >= POOL_EXHAUSTED_PERCENT;
 }

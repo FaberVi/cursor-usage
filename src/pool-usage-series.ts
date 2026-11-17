@@ -6,7 +6,7 @@ import { startOfUtcDay } from "./utc-day";
 const DAY_MS = 86_400_000;
 
 /** Matches a displayed 100% (`formatPercent` rounds to one decimal). */
-const POOL_EXHAUSTED_PERCENT = 99.95;
+export const POOL_EXHAUSTED_PERCENT = 99.95;
 /** Finished UTC days used for the depletion pace. Today stays out because it is still open. */
 const RECENT_PACE_DAYS = 7;
 /** One finished day is a partial sample. Until then, use the cycle-to-date rate. */
@@ -272,7 +272,7 @@ function projectOnePool(
   resetAtMs: number | null,
   avgDailyPercent: number,
 ): PoolDepletionProjection {
-  if (currentPct >= 100) {
+  if (currentPct >= POOL_EXHAUSTED_PERCENT) {
     return {
       pool,
       projectedAtIso: null,
