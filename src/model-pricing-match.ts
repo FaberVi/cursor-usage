@@ -22,6 +22,7 @@ const MODEL_ID_STRIP_SUFFIXES = [
   "-thinking",
   "-xhigh",
   "-medium",
+  "-low",
   "-high",
   "-fast",
 ] as const;
@@ -81,6 +82,16 @@ export function generateVariantAliases(entry: ModelPricingEntry, variant: ModelP
         out.add(`${form}-medium`);
         for (const effort of THINKING_EFFORT_TIERS) {
           if (effort !== "medium") out.add(`${form}-${effort}`);
+        }
+      }
+
+      if (variant.id === "fast") {
+        for (const effort of THINKING_EFFORT_TIERS) {
+          out.add(`${form}-${effort}-fast`);
+        }
+        // Cursor first-party Fast tiers sometimes bill as *-high (Grok 4.5+) or *-high-fast (subagents).
+        if (entry.pool === "firstParty") {
+          out.add(`${form}-high`);
         }
       }
     }
@@ -262,6 +273,28 @@ export function resolveWithSuffixFallback(
 
   if (normalized.includes("thinking")) {
     return resolveThinkingFallback(index, normalized, findModel);
+  }
+
+  const baseId = stripModelSuffixes(normalized);
+  if (baseId !== normalized) {
+    const base = resolveFromAliasIndex(index, baseId);
+    if (base) {
+      if (normalized.includes("-fast")) {
+        const fastVariant = base.entry.variants?.find((variant) => variant.id === "fast");
+        if (fastVariant) {
+          return {
+            entry: base.entry,
+            variant: fastVariant,
+            effectiveRates: resolveEffectiveRates(base.entry, fastVariant, false, findModel),
+          };
+        }
+      }
+      return {
+        entry: base.entry,
+        variant: base.variant,
+        effectiveRates: resolveEffectiveRates(base.entry, base.variant, false, findModel),
+      };
+    }
   }
 
   return null;

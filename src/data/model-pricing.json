@@ -101,7 +101,15 @@
             "cursor-grok-4.7-fast",
             "grok-4.7-fast",
             "grok-4-7-fast",
-            "cursor-grok-4-7-fast"
+            "cursor-grok-4-7-fast",
+            "cursor-grok-4.7-high",
+            "grok-4.7-high",
+            "grok-4-7-high",
+            "cursor-grok-4-7-high",
+            "cursor-grok-4.7-high-fast",
+            "grok-4.7-high-fast",
+            "grok-4-7-high-fast",
+            "cursor-grok-4-7-high-fast"
           ],
           "priceImpact": "customRates",
           "rates": {
@@ -173,7 +181,15 @@
             "cursor-grok-4.6-fast",
             "grok-4.6-fast",
             "grok-4-6-fast",
-            "cursor-grok-4-6-fast"
+            "cursor-grok-4-6-fast",
+            "cursor-grok-4.6-high",
+            "grok-4.6-high",
+            "grok-4-6-high",
+            "cursor-grok-4-6-high",
+            "cursor-grok-4.6-high-fast",
+            "grok-4.6-high-fast",
+            "grok-4-6-high-fast",
+            "cursor-grok-4-6-high-fast"
           ],
           "priceImpact": "customRates",
           "rates": {
@@ -1617,7 +1633,13 @@
       },
       "notes": "Up to 1M tokens in Max Mode at the same per-token rates (no long-context surcharge); Cached input is billed at $0.20 per million tokens with no separate cache-write charge",
       "aliases": [
-        "muse-wonder"
+        "muse-wonder",
+        "muse-wonder-1.0",
+        "muse-wonder-1-0",
+        "muse-wonder-1.0-high",
+        "muse-wonder-1-0-high",
+        "muse-wonder-1.0-high-fast",
+        "muse-wonder-1-0-high-fast"
       ]
     }
   ]

@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-11-17
+
+### Fixed
+- **First-party pool** usage breakdown no longer attributes **Cursor Grok** and **Composer 2.5** spend to the API pool when the usage API reports compound slugs such as `grok-4.7-high-fast` or `cursor-grok-4.6-high-fast`.
+- Model resolver matches `*-high-fast`, `*-medium-fast`, `*-low-fast`, and `*-xhigh-fast` on every **Fast** catalog variant, and strips `-low` in the suffix fallback chain.
+
+### Added
+- **Muse Wonder** versioned usage slugs (`muse-wonder-1.0-high`, `muse-wonder-1.0-high-fast`, and dash forms) in the bundled pricing catalog.
+- Parametric tests that every first-party **Fast** model resolves effort-fast compounds and stays in the Auto pool.
+
 ## [1.0.9] - 2026-11-15
 
 ### Added

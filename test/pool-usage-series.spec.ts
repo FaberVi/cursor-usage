@@ -49,6 +49,9 @@ describe("isAutoPoolEvent", () => {
     expect(isAutoPoolEvent({ ...baseEvent, timestamp: now, model: "cursor-grok-4.5-high", spendCents: 100 })).toBeTrue();
     expect(isAutoPoolEvent({ ...baseEvent, timestamp: now, model: "grok-4.6", spendCents: 100 })).toBeTrue();
     expect(isAutoPoolEvent({ ...baseEvent, timestamp: now, model: "cursor-grok-4.6-fast", spendCents: 100 })).toBeTrue();
+    expect(isAutoPoolEvent({ ...baseEvent, timestamp: now, model: "grok-4.7-high-fast", spendCents: 100 })).toBeTrue();
+    expect(isAutoPoolEvent({ ...baseEvent, timestamp: now, model: "cursor-grok-4.7-high-fast", spendCents: 100 })).toBeTrue();
+    expect(isAutoPoolEvent({ ...baseEvent, timestamp: now, model: "cursor-grok-4.6-high-fast", spendCents: 100 })).toBeTrue();
   });
 
   it("treats API-pool models as the API pool", () => {

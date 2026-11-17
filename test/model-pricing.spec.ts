@@ -12,6 +12,7 @@ import {
   resolveModelPricing,
   resolveModelPricingDetailed,
 } from "../src/model-pricing";
+import { isAutoPoolEvent } from "../src/pool-usage-series";
 
 const baseEvent: UsageEvent = {
   timestamp: Date.now(),
@@ -44,6 +45,48 @@ describe("model pricing catalog", () => {
         expect(["auto", "composer-2.5", "grok-4.5", "grok-4.6", "grok-4.7", "grok-4-7-500k"]).toContain(entry.id);
       }
     }
+  });
+});
+
+const EFFORT_TIER_SUFFIXES = ["high", "medium", "low", "xhigh"] as const;
+
+function firstPartyFastModels() {
+  return getModelPricingCatalog().models.filter(
+    (entry) => entry.pool === "firstParty" && entry.variants?.some((variant) => variant.id === "fast"),
+  );
+}
+
+describe("first-party effort-fast pool slugs", () => {
+  it("resolves effort-fast compounds for every first-party Fast model root", () => {
+    for (const entry of firstPartyFastModels()) {
+      const roots = [...new Set([entry.id, ...(entry.aliases ?? [])])];
+      for (const root of roots) {
+        for (const effort of EFFORT_TIER_SUFFIXES) {
+          const slug = `${root}-${effort}-fast`;
+          const resolved = resolveModelPricingDetailed(slug);
+          expect(resolved?.entry.id, slug).toBe(entry.id);
+          expect(resolved?.variant?.id, slug).toBe("fast");
+        }
+      }
+    }
+  });
+
+  it("keeps first-party effort-fast spend in the Auto pool", () => {
+    const included = { ...baseEvent, kind: "Included" as const, spendCents: 100 };
+    for (const entry of firstPartyFastModels()) {
+      for (const effort of ["high", "medium", "low"] as const) {
+        const slug = `${entry.id}-${effort}-fast`;
+        expect(isAutoPoolEvent({ ...included, model: slug }), slug).toBeTrue();
+      }
+    }
+  });
+});
+
+describe("muse wonder API slugs", () => {
+  it("resolves versioned Muse Wonder usage API slugs", () => {
+    expect(resolveModelPricing("muse-wonder-1.0-high")?.id).toBe("muse-wonder");
+    expect(resolveModelPricing("muse-wonder-1.0-high-fast")?.id).toBe("muse-wonder");
+    expect(resolveModelPricing("muse-wonder-1-0-high")?.id).toBe("muse-wonder");
   });
 });
 
@@ -116,6 +159,12 @@ describe("resolveModelPricing", () => {
     });
     expect(resolveModelPricingDetailed("cursor-grok-4.7-fast")?.entry.id).toBe("grok-4.7");
     expect(resolveModelPricingDetailed("cursor-grok-4.7-fast")?.variant?.id).toBe("fast");
+    const grok47HighFast = resolveModelPricingDetailed("grok-4.7-high-fast");
+    expect(grok47HighFast?.entry.id).toBe("grok-4.7");
+    expect(grok47HighFast?.variant?.id).toBe("fast");
+    expect(grok47HighFast?.entry.pool).toBe("firstParty");
+    expect(resolveModelPricingDetailed("cursor-grok-4.6-high-fast")?.entry.id).toBe("grok-4.6");
+    expect(resolveModelPricingDetailed("cursor-grok-4.6-high-fast")?.variant?.id).toBe("fast");
     expect(resolveModelPricing("grok-bot-default")?.pool).toBe("grokBot");
     expect(resolveModelPricingDetailed("gemini-3.6-flash-high")?.entry.id).toBe("gemini-3.6-flash");
     expect(resolveModelPricing("kimi-k3")?.displayName).toBe("Kimi K3");

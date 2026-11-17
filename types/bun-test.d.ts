@@ -38,7 +38,7 @@ declare module "bun:test" {
   export function it(name: string, fn: () => void | Promise<void>): void;
   export function beforeEach(fn: () => void | Promise<void>): void;
   export function afterEach(fn: () => void | Promise<void>): void;
-  export function expect<T>(value: T): BunMatchers<T>;
+  export function expect<T>(value: T, message?: string): BunMatchers<T>;
   export const mock: {
     <T extends BunMockFn>(fn?: T): BunMock<T>;
     module(specifier: string, factory: () => unknown): void;
