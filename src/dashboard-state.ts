@@ -85,6 +85,50 @@ export type DashboardState = {
 };
 
 
+// The heavy per-event aggregations below are day-granular (UTC day buckets and
+// billing-cycle cutoffs), so they can be reused across publishes within the
+// same day while the input references stay unchanged.
+const AGGREGATE_CACHE_DAY_MS = 86_400_000;
+// Senza resetsAt valido il cutoff è now-31g e scorre infrasettimanente:
+// si usa un bucket orario per limitare la finestra di dati stale.
+const AGGREGATE_CACHE_HOUR_MS = 3_600_000;
+
+type PricingAggregateCacheEntry = {
+  events: UsageEvent[];
+  resetsAt: string | null;
+  bucket: number;
+  catalog: ModelPricingCatalog;
+  isTeamPlan: boolean;
+  quotaAwareEventDisplay: boolean;
+  value: ReturnType<typeof aggregateTheoreticalByModel>;
+};
+let pricingAggregateCache: PricingAggregateCacheEntry | null = null;
+
+type PoolSeriesCacheEntry = {
+  events: UsageEvent[];
+  poolUsage: NonNullable<UsagePayload["poolUsage"]>;
+  resetsAt: string | null;
+  bucket: number;
+  evenDailyShape: boolean;
+  // buildPoolUsageSeries classifica i modelli via resolveModelPricing: un sync
+  // del catalogo deve invalidare la serie come avviene per il pricing aggregate.
+  catalog: ModelPricingCatalog;
+  value: PoolUsageSeries | null;
+};
+let poolSeriesCache: PoolSeriesCacheEntry | null = null;
+
+type PoolUsageSnapshot = NonNullable<UsagePayload["poolUsage"]>;
+
+// poolUsage arriva come oggetto nuovo a ogni fetch: il confronto per
+// riferimento non centrerebbe mai tra due refresh, quindi si confrontano i campi.
+function samePoolUsageSnapshot(a: PoolUsageSnapshot, b: PoolUsageSnapshot): boolean {
+  return (
+    a.autoPercentUsed === b.autoPercentUsed &&
+    a.apiPercentUsed === b.apiPercentUsed &&
+    a.totalPercentUsed === b.totalPercentUsed
+  );
+}
+
 export function buildDashboardState(
   data: UsagePayload | null,
   events: UsageEvent[],
@@ -116,23 +160,67 @@ export function buildDashboardState(
     tier === "Teams" ||
     tier === "Enterprise" ||
     tier?.startsWith("Teams ·") === true;
-  const pricingAggregate = aggregateTheoreticalByModel(
-    events,
-    "billingCycle",
-    resetsAt,
-    now,
-    {
-      applyCursorTokenRate: isTeamPlan,
-      cursorTokenRatePerMillion: catalog.cursorTokenRatePerMillion,
-      quotaAwareEventDisplay,
-    },
+  const hasStableCycle = resetsAt !== null && !Number.isNaN(new Date(resetsAt).getTime());
+  const aggregateBucket = Math.floor(
+    now / (hasStableCycle ? AGGREGATE_CACHE_DAY_MS : AGGREGATE_CACHE_HOUR_MS),
   );
+  const cachedPricing = pricingAggregateCache;
+  const pricingAggregate =
+    cachedPricing &&
+    cachedPricing.events === events &&
+    cachedPricing.resetsAt === resetsAt &&
+    cachedPricing.bucket === aggregateBucket &&
+    cachedPricing.catalog === catalog &&
+    cachedPricing.isTeamPlan === isTeamPlan &&
+    cachedPricing.quotaAwareEventDisplay === quotaAwareEventDisplay
+      ? cachedPricing.value
+      : aggregateTheoreticalByModel(
+          events,
+          "billingCycle",
+          resetsAt,
+          now,
+          {
+            applyCursorTokenRate: isTeamPlan,
+            cursorTokenRatePerMillion: catalog.cursorTokenRatePerMillion,
+            quotaAwareEventDisplay,
+          },
+        );
+  pricingAggregateCache = {
+    events,
+    resetsAt,
+    bucket: aggregateBucket,
+    catalog,
+    isTeamPlan,
+    quotaAwareEventDisplay,
+    value: pricingAggregate,
+  };
 
+  const evenDailyShape = !eventsComplete;
+  const cachedPoolSeries = poolSeriesCache;
   const poolUsageSeries = poolUsage
-    ? buildPoolUsageSeries(eventsForPool, poolUsage, resetsAt, now, {
-        evenDailyShape: !eventsComplete,
-      })
+    ? cachedPoolSeries &&
+      cachedPoolSeries.events === eventsForPool &&
+      samePoolUsageSnapshot(cachedPoolSeries.poolUsage, poolUsage) &&
+      cachedPoolSeries.resetsAt === resetsAt &&
+      cachedPoolSeries.bucket === aggregateBucket &&
+      cachedPoolSeries.evenDailyShape === evenDailyShape &&
+      cachedPoolSeries.catalog === catalog
+      ? cachedPoolSeries.value
+      : buildPoolUsageSeries(eventsForPool, poolUsage, resetsAt, now, {
+          evenDailyShape,
+        })
     : null;
+  if (poolUsage) {
+    poolSeriesCache = {
+      events: eventsForPool,
+      poolUsage,
+      resetsAt,
+      bucket: aggregateBucket,
+      evenDailyShape,
+      catalog,
+      value: poolUsageSeries,
+    };
+  }
 
   return {
     generatedAt: now,

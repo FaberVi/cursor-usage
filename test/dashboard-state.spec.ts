@@ -413,3 +413,74 @@ describe("summarizeRange", () => {
     expect(today.onDemandSpendDollars).toBeCloseTo(3.2, 5);
   });
 });
+
+describe("buildDashboardState aggregate caches", () => {
+  const poolData: UsagePayload = {
+    ...sampleData,
+    resetsAt: "2026-05-01T00:00:00.000Z",
+    poolUsage: { autoPercentUsed: 40, apiPercentUsed: 20, totalPercentUsed: 30 },
+    planInfo: {
+      accountType: "personal",
+      planKind: "personal",
+      seatType: null,
+      tier: "Ultra",
+      priceLabel: null,
+      displayName: "Ultra",
+    },
+  };
+
+  function buildPoolState(
+    events: UsageEvent[],
+    at: number,
+    eventsComplete = true,
+    data: UsagePayload = poolData,
+  ) {
+    return buildDashboardState(
+      data,
+      events,
+      [],
+      false,
+      null,
+      at,
+      true,
+      {},
+      0,
+      events,
+      [],
+      eventsComplete,
+    );
+  }
+
+  it("reuses pricing and pool aggregates for identical inputs", () => {
+    const first = buildPoolState(sampleEvents, now);
+    const second = buildPoolState(sampleEvents, now);
+    expect(first.modelPricing.theoreticalByModel).toBeDefined();
+    expect(first.poolUsageSeries).not.toBeNull();
+    expect(second.modelPricing.theoreticalByModel).toBe(first.modelPricing.theoreticalByModel);
+    expect(second.poolUsageSeries).toBe(first.poolUsageSeries);
+  });
+
+  it("recomputes aggregates when the events reference changes", () => {
+    const first = buildPoolState(sampleEvents, now);
+    const changedEvents: UsageEvent[] = [
+      ...sampleEvents,
+      { ...baseEvent, timestamp: now - dayMs, model: "brand-new-model", kind: "Included", totalTokens: 5, requests: 1 },
+    ];
+    const second = buildPoolState(changedEvents, now);
+    expect(second.modelPricing.theoreticalByModel).not.toBe(first.modelPricing.theoreticalByModel);
+    expect(second.poolUsageSeries).not.toBe(first.poolUsageSeries);
+  });
+
+  it("recomputes aggregates when the UTC day changes", () => {
+    const first = buildPoolState(sampleEvents, now);
+    const second = buildPoolState(sampleEvents, now + dayMs);
+    expect(second.modelPricing.theoreticalByModel).not.toBe(first.modelPricing.theoreticalByModel);
+    expect(second.poolUsageSeries).not.toBe(first.poolUsageSeries);
+  });
+
+  it("recomputes the pool series when eventsComplete flips", () => {
+    const complete = buildPoolState(sampleEvents, now, true);
+    const partial = buildPoolState(sampleEvents, now, false);
+    expect(partial.poolUsageSeries).not.toBe(complete.poolUsageSeries);
+  });
+});

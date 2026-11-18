@@ -15,7 +15,12 @@ import { buildDashboardState, type DashboardState } from "./dashboard-state";
 import { formatResetCountdown, t, tf } from "./i18n";
 import { formatStatusBarUsageText } from "./pool-usage";
 import { shouldShowPremiumRequestsQuota } from "./usage-display";
-import { UsageEventStore } from "./usage-event-store";
+import {
+  configureDbWorker,
+  shutdownDbWorker,
+  usageEventStoreApi,
+  type UsageEventStoreApi,
+} from "./db-worker-client";
 import { usageEventFingerprint } from "./usage-event-fingerprint";
 import { updateStatusBar, type StatusBarConfig, type StatusBarContext } from "./status-bar-content";
 import {
@@ -53,8 +58,16 @@ let fetchPromise: Promise<void> | null = null;
 let queuedNonForce = false;
 let queuedForce = false;
 let extensionContext: vscode.ExtensionContext;
-let eventStore: UsageEventStore | null = null;
+let eventStore: UsageEventStoreApi | null = null;
 let conversationTitles: Record<string, string> = {};
+// Titles rarely change; keep them so each refresh does not rescan Cursor's state.vscdb.
+const conversationTitleCache = new Map<string, { title: string | null; at: number }>();
+const CONVERSATION_TITLE_CACHE_LIMIT = 5000;
+const CONVERSATION_TITLE_CACHE_TTL_MS = 10 * 60_000;
+// Gli id senza titolo vengono cachati in negativo: senza, ogni refresh
+// riscansionerebbe state.vscdb per gli stessi id. TTL più corto perché un
+// titolo può apparire in ritardo (prime battute della conversazione).
+const CONVERSATION_TITLE_NEGATIVE_TTL_MS = 60_000;
 let conversationPreviewEnabled = false;
 let storedEventCount = 0;
 let grokBotStoredEventCount = 0;
@@ -79,6 +92,10 @@ export function initExtensionRefresh(
   outputChannel = channel;
   conversationPreviewEnabled = isConversationPreviewEnabled();
   pricingCatalogStore = new PricingCatalogStore(context.globalStorageUri.fsPath);
+  configureDbWorker({
+    storageDir: context.globalStorageUri.fsPath,
+    extensionPath: context.extensionPath,
+  });
   initPricingCatalogRefresh(
     pricingCatalogStore,
     getDashboardState,
@@ -142,12 +159,9 @@ function isConversationPreviewEnabled(): boolean {
   return extensionContext.globalState.get<boolean>(CONVERSATION_PREVIEW_KEY) === true;
 }
 
-async function ensureEventStore(): Promise<UsageEventStore> {
+async function ensureEventStore(): Promise<UsageEventStoreApi> {
   if (!eventStore) {
-    eventStore = new UsageEventStore(
-      extensionContext.globalStorageUri.fsPath,
-      extensionContext.extensionPath,
-    );
+    eventStore = usageEventStoreApi();
     await eventStore.init();
   }
   return eventStore;
@@ -159,9 +173,53 @@ async function refreshConversationTitles(events: UsageEvent[]): Promise<number> 
     conversationTitles = {};
     return 0;
   }
-  const ids = events.map((event) => event.conversationId).filter((id): id is string => Boolean(id));
-  conversationTitles = await buildConversationTitleMap(ids, extensionContext.extensionPath);
-  return Object.keys(conversationTitles).length;
+  const ids = [...new Set(events.map((event) => event.conversationId).filter((id): id is string => Boolean(id)))];
+  const now = Date.now();
+  const titleEntryFresh = (entry: { title: string | null; at: number } | undefined) =>
+    entry !== undefined &&
+    now - entry.at < (entry.title === null ? CONVERSATION_TITLE_NEGATIVE_TTL_MS : CONVERSATION_TITLE_CACHE_TTL_MS);
+  const missing: string[] = [];
+  const expiredEntries = new Map<string, { title: string | null; at: number }>();
+  for (const id of ids) {
+    const entry = conversationTitleCache.get(id);
+    if (titleEntryFresh(entry)) continue;
+    if (entry) expiredEntries.set(id, entry);
+    missing.push(id);
+  }
+  if (missing.length > 0) {
+    // La lookup avviene via RPC sul db worker e puo' rifiutare: un fallimento
+    // non deve far fallire l'intero refresh ne azzerare i titoli gia' noti —
+    // in quel caso si conserva la entry scaduta e si riprova al prossimo TTL.
+    let fetched: Record<string, string> | null = null;
+    try {
+      fetched = await buildConversationTitleMap(missing, extensionContext.extensionPath);
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : String(err);
+      log(`Conversation title lookup failed: ${detail}`);
+    }
+    for (const id of missing) {
+      if (conversationTitleCache.size >= CONVERSATION_TITLE_CACHE_LIMIT) {
+        const oldest = conversationTitleCache.keys().next().value;
+        if (oldest !== undefined) conversationTitleCache.delete(oldest);
+      }
+      // delete + set sposta la entry in coda: l'eviction FIFO non butta via
+      // una entry appena rinfrescata per colpa della sua posizione originale.
+      conversationTitleCache.delete(id);
+      conversationTitleCache.set(
+        id,
+        fetched !== null
+          ? { title: fetched[id] ?? null, at: now }
+          : { title: expiredEntries.get(id)?.title ?? null, at: now },
+      );
+    }
+  }
+  const titles: Record<string, string> = {};
+  for (const id of ids) {
+    const entry = conversationTitleCache.get(id);
+    if (entry?.title && titleEntryFresh(entry)) titles[id] = entry.title;
+  }
+  conversationTitles = titles;
+  return Object.keys(titles).length;
 }
 
 export async function handleConversationPreviewChange(previewEnabled: boolean): Promise<void> {
@@ -180,8 +238,12 @@ export async function handleConversationPreviewChange(previewEnabled: boolean): 
 
 async function loadStoredEvents(sinceMs: number): Promise<UsageEvent[]> {
   const store = await ensureEventStore();
-  storedEventCount = store.getEventCount();
-  grokBotStoredEventCount = store.getGrokBotEventCount();
+  const [eventCount, grokBotCount] = await Promise.all([
+    store.getEventCount(),
+    store.getGrokBotEventCount(),
+  ]);
+  storedEventCount = eventCount;
+  grokBotStoredEventCount = grokBotCount;
   return store.getEventsSince(sinceMs);
 }
 
@@ -395,13 +457,26 @@ export async function showDetails(): Promise<void> {
   }
 }
 
-export function getDashboardState(): DashboardState {
-  const now = Date.now();
-  const rawEvents = usageState.lastEvents ?? [];
-  const allEvents = rawEvents.map((event) => {
+// The mapped event array is rebuilt only when the stored events change, so
+// fingerprints and the dashboard aggregates in buildDashboardState are
+// computed once per refresh instead of once per state publish.
+let cachedEventsSource: UsageEvent[] | null = null;
+let cachedAllEvents: UsageEvent[] = [];
+
+function getAllEventsWithKeys(): UsageEvent[] {
+  const source = usageState.lastEvents;
+  if (source === cachedEventsSource) return cachedAllEvents;
+  cachedEventsSource = source;
+  cachedAllEvents = (source ?? []).map((event) => {
     const normalized = normalizeUsageEventRequests(event);
     return { ...normalized, eventKey: usageEventFingerprint(normalized) };
   });
+  return cachedAllEvents;
+}
+
+export function getDashboardState(): DashboardState {
+  const now = Date.now();
+  const allEvents = getAllEventsWithKeys();
   // Send the full event archive to the webview. Range / usage filters are applied
   // client-side for charts and tables; pool pacing also needs the unfiltered history.
   return buildDashboardState(
@@ -423,7 +498,7 @@ export function getDashboardState(): DashboardState {
   );
 }
 
-export function cleanupExtensionRefresh(): void {
+export function cleanupExtensionRefresh(): Promise<void> {
   if (debounceTimer) {
     clearTimeout(debounceTimer);
     debounceTimer = undefined;
@@ -437,14 +512,22 @@ export function cleanupExtensionRefresh(): void {
   usageState.fullHistoryAttempted = false;
   usageState.fullHistorySynced = false;
   refreshBusyDepth = 0;
+  conversationTitleCache.clear();
   usageState.lastWarnings = [];
   usageState.lastEventsComplete = true;
   usageState.lastData = null;
   usageState.lastEvents = null;
+  cachedEventsSource = null;
+  cachedAllEvents = [];
   usageState.lastError = null;
   usageState.lastErrorDetail = null;
-  eventStore?.close();
+  const store = eventStore;
   eventStore = null;
+  // close() flusha le scritture pendenti nel worker prima della terminazione:
+  // la promise torna al chiamante così deactivate può attenderla.
+  return (store ? store.close() : Promise.resolve()).finally(() => {
+    shutdownDbWorker();
+  });
 }
 
 export function getOutputChannel(): vscode.OutputChannel {

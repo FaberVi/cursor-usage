@@ -1,17 +1,26 @@
 import { existsSync } from "fs";
 import { apiLog } from "./cursor-api-logger";
 import type { AuthInfo, CursorHeaders } from "./cursor-api-types";
-import { getGlobalCursorDbPath, readCursorAuthValuesFromDb, type CursorAuthValues } from "./cursor-db-reader";
+import { getGlobalCursorDbPath, type CursorAuthValues } from "./cursor-db-reader";
+import { readCursorAuthValues } from "./db-worker-client";
 import { openCursorAuthSecret } from "./cursor-safe-storage";
 import { invalidateSetupCache } from "./cursor-setup-cache";
 
-const AUTH_CACHE_TTL = 10_000;
+// TTL corto: la lettura DB è ora nel worker, ma una finestra troppo larga
+// maschererebbe un cambio token (invalidateSetupCache ritardato).
+const AUTH_CACHE_TTL = 5_000;
 
 let cachedAuth: { info: AuthInfo | null; ts: number; sessionToken: string | null } = {
   info: null,
   ts: 0,
   sessionToken: null,
 };
+
+// Azzera la cache auth: permette ai test di isolare i casi e a chi usa il
+// modulo di forzare una rilettura esplicita del DB.
+export function resetCursorAuthCache(): void {
+  cachedAuth = { info: null, ts: 0, sessionToken: null };
+}
 
 function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
   try {
@@ -41,9 +50,16 @@ export async function getCursorToken(): Promise<AuthInfo | null> {
     return null;
   }
 
+  // The DB scan below is synchronous and expensive: serve the cached token
+  // first so a refresh cycle does not re-read state.vscdb on every call.
+  if (cachedAuth.info && Date.now() - cachedAuth.ts < AUTH_CACHE_TTL) {
+    apiLog("Using cached auth token");
+    return cachedAuth.info;
+  }
+
   let authValues: CursorAuthValues;
   try {
-    authValues = readCursorAuthValuesFromDb(dbPath);
+    authValues = await readCursorAuthValues(dbPath);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     apiLog(`Could not read accessToken from database: ${msg}`);
@@ -72,14 +88,6 @@ export async function getCursorToken(): Promise<AuthInfo | null> {
   }
 
   const sessionToken = `${userId}%3A%3A${jwt}`;
-  if (
-    cachedAuth.info
-    && cachedAuth.sessionToken === sessionToken
-    && Date.now() - cachedAuth.ts < AUTH_CACHE_TTL
-  ) {
-    apiLog("Using cached auth token");
-    return cachedAuth.info;
-  }
 
   if (cachedAuth.sessionToken !== sessionToken) {
     apiLog("Auth token changed; invalidating setup cache");

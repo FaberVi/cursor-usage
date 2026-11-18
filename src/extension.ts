@@ -123,6 +123,11 @@ export function activate(context: vscode.ExtensionContext) {
   updateUsage();
 }
 
-export function deactivate() {
-  cleanupExtensionRefresh();
+export async function deactivate() {
+  // Attende il flush del db worker entro 3s: oltre, l'extension host termina
+  // il processo e il worker muore con esso.
+  await Promise.race([
+    cleanupExtensionRefresh(),
+    new Promise((resolve) => setTimeout(resolve, 3_000)),
+  ]);
 }

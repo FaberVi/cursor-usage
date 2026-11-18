@@ -18,16 +18,22 @@ type BunMatchers<T = unknown> = {
   toMatch(expected: string | RegExp): void;
   toBeTruthy(): void;
   toBeInstanceOf(expected: abstract new (...args: never[]) => unknown): void;
+  toThrow(expected?: string | RegExp): void;
   toHaveBeenCalled(): void;
   toHaveBeenCalledTimes(times: number): void;
+  resolves: BunMatchers<Awaited<T>>;
+  rejects: BunMatchers<unknown>;
   not: BunMatchers<T>;
 };
 
 type BunMockFn = (...args: never[]) => unknown;
 
 type BunMock<T extends BunMockFn> = T & {
+  mock: { calls: Parameters<T>[] };
   mockClear(): void;
   mockRestore(): void;
+  mockImplementation(fn: T): BunMock<T>;
+  mockImplementationOnce(fn: T): BunMock<T>;
   mockResolvedValue(value: unknown): BunMock<T>;
   mockResolvedValueOnce(value: unknown): BunMock<T>;
   mockReturnValue(value: unknown): BunMock<T>;
@@ -38,6 +44,7 @@ declare module "bun:test" {
   export function it(name: string, fn: () => void | Promise<void>): void;
   export function beforeEach(fn: () => void | Promise<void>): void;
   export function afterEach(fn: () => void | Promise<void>): void;
+  export function afterAll(fn: () => void | Promise<void>): void;
   export function expect<T>(value: T, message?: string): BunMatchers<T>;
   export const mock: {
     <T extends BunMockFn>(fn?: T): BunMock<T>;

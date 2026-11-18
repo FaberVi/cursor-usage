@@ -2,7 +2,7 @@
 
 Community-maintained fork of [cursor-metrics](https://github.com/wrick17/cursor-metrics). See Cursor usage in your status bar: included requests, Auto/API pool usage, and on-demand spend, live while you work. Click the status bar item to open a full dashboard inside your editor.
 
-**Current release:** `1.0.9` — Sharper pool forecasts, live EUR display, 60-day event retention, and more reliable dashboard refresh. Requires **Cursor / VS Code 1.128+**.
+**Current release:** `1.0.11` — SQLite work off the extension host thread (dedicated db worker), faster refresh cycles, and cached dashboard aggregates. Requires **Cursor / VS Code 1.128+**.
 
 ![Cursor Usage extension tooltip](media/extensions-tooltip.png)
 

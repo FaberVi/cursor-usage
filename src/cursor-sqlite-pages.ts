@@ -203,13 +203,36 @@ export function indexWalFile(dbPath: string, pageSize: number): WalIndex | null 
 
   const pages = new Map<number, number>();
   const frameSize = 24 + pageSize;
-  for (let frameOffset = 32; frameOffset + frameSize <= size; frameOffset += frameSize) {
-    const frameHeader = Buffer.alloc(4);
-    readSync(fd, frameHeader, 0, frameHeader.length, frameOffset);
-    const pageNumber = frameHeader.readUInt32BE(0);
-    if (pageNumber > 0) {
-      pages.set(pageNumber, frameOffset + 24);
+  // Read frame headers in chunks: one readSync per frame does not scale on large WALs.
+  const framesPerRead = 256;
+  const readSize = framesPerRead * frameSize;
+  let frameIndex = 0;
+  for (;;) {
+    const frameOffset = 32 + frameIndex * frameSize;
+    if (frameOffset + frameSize > size) break;
+    const want = Math.min(readSize, size - frameOffset);
+    const chunk = Buffer.allocUnsafe(want);
+    // readSync può restituire meno byte del richiesto: completiamo la lettura
+    // invece di fermarci al primo short read, altrimenti i frame restanti
+    // non entrerebbero mai nell'indice.
+    let got = 0;
+    while (got < want) {
+      const n = readSync(fd, chunk, got, want - got, frameOffset + got);
+      if (n <= 0) break;
+      got += n;
     }
+    if (got < 4) break;
+
+    const wholeFrames = Math.floor(got / frameSize);
+    if (wholeFrames === 0) break;
+    for (let i = 0; i < wholeFrames; i++) {
+      const pageNumber = chunk.readUInt32BE(i * frameSize);
+      if (pageNumber > 0) {
+        pages.set(pageNumber, frameOffset + i * frameSize + 24);
+      }
+    }
+    frameIndex += wholeFrames;
+    if (got < want) break;
   }
 
   return { fd, pages };

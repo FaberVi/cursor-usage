@@ -402,4 +402,101 @@ describe("UsageEventStore", () => {
     reopened.close();
     rmSync(dir, { recursive: true, force: true });
   });
+
+  it("bumps the store revision only when the event content changes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cursor-usage-store-"));
+    const store = new UsageEventStore(dir, extensionPath);
+    await store.init();
+
+    const revInitial = store.getStoreRevision();
+    const event = usageEvent({
+      timestamp: 1_700_000_000_000,
+      model: "revision-model",
+      kind: "Included",
+      totalTokens: 10,
+      spendCents: 1,
+    });
+
+    store.upsertEvents([event]);
+    const revAfterInsert = store.getStoreRevision();
+    expect(revAfterInsert).toBeGreaterThan(revInitial);
+
+    // Stesso payload: la revisione non deve muoversi, altrimenti ogni refresh
+    // forzirebbe un nuovo invio della finestra eventi via RPC.
+    store.upsertEvents([event]);
+    expect(store.getStoreRevision()).toBe(revAfterInsert);
+
+    store.upsertEvents([{ ...event, spendCents: 2 }]);
+    expect(store.getStoreRevision()).toBeGreaterThan(revAfterInsert);
+
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not bump the revision when syncEventsFromApi rewrites identical payloads", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cursor-usage-store-"));
+    const store = new UsageEventStore(dir, extensionPath);
+    await store.init();
+
+    const sinceMs = 1_650_000_000_000;
+    const events = [
+      usageEvent({
+        timestamp: 1_700_000_000_000,
+        model: "sync-model",
+        kind: "Included",
+        totalTokens: 10,
+        spendCents: 1,
+      }),
+      usageEvent({
+        timestamp: 1_700_000_100_000,
+        model: "sync-model-2",
+        kind: "On-Demand",
+        totalTokens: 5,
+        spendCents: 3,
+      }),
+    ];
+    store.syncEventsFromApi(events, sinceMs, { totalCovered: true });
+    const revAfterSync = store.getStoreRevision();
+    expect(revAfterSync).toBeGreaterThan(0);
+
+    // Stesso snapshot: DELETE + INSERT identici non devono muovere la revisione,
+    // altrimenti ogni sync forzirebbe il re-invio della finestra eventi via RPC.
+    store.syncEventsFromApi(events, sinceMs, { totalCovered: true });
+    expect(store.getStoreRevision()).toBe(revAfterSync);
+
+    // Una riga in meno nella finestra è un cambiamento.
+    store.syncEventsFromApi([events[0]!], sinceMs, { totalCovered: true });
+    expect(store.getStoreRevision()).toBeGreaterThan(revAfterSync);
+
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("skips vacuum and reports zero when nothing is older than the cutoff", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cursor-usage-store-"));
+    const dbPath = join(dir, "usage-events.sqlite");
+    const store = new UsageEventStore(dir, extensionPath);
+    await store.init();
+
+    const cutoffMs = 1_700_000_000_000;
+    store.upsertEvents([
+      usageEvent({
+        timestamp: cutoffMs + 1,
+        model: "fresh",
+        kind: "Included",
+        totalTokens: 10,
+        spendCents: 1,
+      }),
+    ]);
+    store.flushPersist();
+    const sizeBefore = statSync(dbPath).size;
+
+    expect(store.purgeEventsBefore(cutoffMs)).toBe(0);
+    // Nessun VACUUM e nessuna riscrittura del file quando non ci sono righe obsolete.
+    expect(statSync(dbPath).size).toBe(sizeBefore);
+    expect(store.getEventCount()).toBe(1);
+
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
 });

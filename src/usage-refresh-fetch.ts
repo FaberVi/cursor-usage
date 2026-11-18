@@ -16,7 +16,7 @@ import { refreshEurPerUsd } from "./eur-usd-rate";
 import { resolveGrokBotUsageWithCache } from "./grok-bot-usage-cache";
 import { t } from "./i18n";
 import { updateStatusBar } from "./status-bar-content";
-import { UsageEventStore } from "./usage-event-store";
+import type { UsageEventStoreApi } from "./db-worker-client";
 
 /** Local archive, API download, and dashboard load share this window. */
 export const EVENT_RETENTION_DAYS = 60;
@@ -66,7 +66,7 @@ export type UsageRefreshState = {
 
 export type UsageRefreshHost = {
   log: (msg: string) => void;
-  ensureEventStore: () => Promise<UsageEventStore>;
+  ensureEventStore: () => Promise<UsageEventStoreApi>;
   loadStoredEvents: (sinceMs: number) => Promise<UsageEvent[]>;
   refreshConversationTitles: (events: UsageEvent[]) => Promise<number>;
   locale: () => DashboardLocale;
@@ -116,7 +116,7 @@ async function drainBackgroundEventHistorySync(runFullSync: () => Promise<void>)
 async function purgeStoredEvents(host: UsageRefreshHost, cutoffMs: number): Promise<void> {
   try {
     const store = await host.ensureEventStore();
-    const removed = store.purgeEventsBefore(cutoffMs);
+    const removed = await store.purgeEventsBefore(cutoffMs);
     if (removed > 0) {
       host.log(`Purged ${removed} usage events older than the retention cutoff`);
     }
@@ -161,13 +161,13 @@ export async function runEventHistorySync(state: UsageRefreshState, host: UsageR
     try {
       const store = await host.ensureEventStore();
       if (eventsComplete) {
-        store.syncEventsFromApi(eventsResult.events, cutoffMs, {
+        await store.syncEventsFromApi(eventsResult.events, cutoffMs, {
           allowEmpty: true,
           totalCovered: eventsResult.totalCovered,
         });
-        store.flushPersist();
+        await store.flushPersist();
       } else {
-        store.upsertEvents(eventsResult.events);
+        await store.upsertEvents(eventsResult.events);
       }
       storeWriteOk = true;
     } catch (err: unknown) {
@@ -270,7 +270,7 @@ export async function runUpdateUsage(
       let storeWriteOk = false;
       try {
         const store = await host.ensureEventStore();
-        store.upsertEvents(apiEvents);
+        await store.upsertEvents(apiEvents);
         storeWriteOk = true;
       } catch (err: unknown) {
         const detail = err instanceof Error ? err.message : String(err);

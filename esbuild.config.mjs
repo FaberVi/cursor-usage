@@ -5,9 +5,9 @@ const isProd = process.argv.includes("--production");
 
 /** @type {import('esbuild').BuildOptions} */
 const extensionConfig = {
-  entryPoints: ["src/extension.ts"],
+  entryPoints: ["src/extension.ts", "src/db-worker.ts"],
   bundle: true,
-  outfile: "dist/extension.js",
+  outdir: "dist",
   external: ["vscode", "sql.js"],
   format: "cjs",
   platform: "node",

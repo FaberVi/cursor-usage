@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.11] - 2026-11-18
+
+### Changed
+- Heavy SQLite work moved off the extension host thread into a dedicated worker: the usage event store (sql.js) and the Cursor `state.vscdb` reader now run behind an async RPC layer, so refresh cycles no longer freeze the UI.
+- `state.vscdb` WAL frames are indexed in 256-frame chunks instead of one read per frame.
+- Dashboard pricing aggregates and pool usage series are cached per UTC day (per hour when the billing-cycle reset is unknown) and reused across publishes while inputs stay unchanged.
+- Conversation titles are cached for 10 minutes (60 s negative cache) instead of rescanning `state.vscdb` on every refresh.
+- Event snapshots cross the worker boundary only when the store content revision changes; identical content reuses the client-side copy.
+- Re-syncing identical events no longer bumps the store revision; purges skip VACUUM when nothing was deleted.
+- Deactivation waits up to 3 s for the worker to flush pending writes before the extension host exits.
+
+### Fixed
+- A failed event-store init inside the worker no longer wedges every later store operation for the whole session.
+
 ## [1.0.10] - 2026-11-17
 
 ### Fixed

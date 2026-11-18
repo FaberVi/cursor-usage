@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import type * as vscode from "vscode";
 import type { SetupCache } from "../src/cursor-api-types";
+import { CONVERSATION_PREVIEW_KEY } from "../src/dashboard-locale";
 import { UsageEventStore } from "../src/usage-event-store";
 
 const invalidateSetupCache = mock(() => {});
@@ -33,6 +34,11 @@ const soloSetup: SetupCache = {
 };
 
 const ensureSetup = mock(async (): Promise<SetupCache | null> => soloSetup);
+
+const buildConversationTitleMapMock = mock(
+  async (conversationIds: string[]) =>
+    Object.fromEntries(conversationIds.map((id) => [id, `title-${id}`])),
+);
 
 mock.module("../src/cursor-setup-cache", () => ({
   invalidateSetupCache,
@@ -73,7 +79,50 @@ mock.module("../src/dashboard-panel", () => ({
 }));
 
 mock.module("../src/conversation-titles", () => ({
-  buildConversationTitleMap: async () => ({}),
+  buildConversationTitleMap: buildConversationTitleMapMock,
+}));
+
+// Keep the event store in-process for these tests: the prototype spies below
+// only see calls made on this thread, not inside the db worker.
+mock.module("../src/db-worker-client", () => ({
+  configureDbWorker: () => {},
+  shutdownDbWorker: () => {},
+  kvReadBatch: async () => null,
+  readCursorAuthValues: async () => ({}),
+  lookupConversationTitles: async () => ({}),
+  usageEventStoreApi: () => {
+    let store: UsageEventStore | null = null;
+    const get = async (): Promise<UsageEventStore> => {
+      if (!store) {
+        store = new UsageEventStore(storageDir, process.cwd());
+        await store.init();
+      }
+      return store;
+    };
+    return {
+      init: async () => {
+        await get();
+      },
+      upsertEvents: async (events: Parameters<UsageEventStore["upsertEvents"]>[0]) =>
+        (await get()).upsertEvents(events),
+      syncEventsFromApi: async (
+        events: Parameters<UsageEventStore["syncEventsFromApi"]>[0],
+        sinceMs: number,
+        opts?: Parameters<UsageEventStore["syncEventsFromApi"]>[2],
+      ) => (await get()).syncEventsFromApi(events, sinceMs, opts),
+      getEventsSince: async (since: number) => (await get()).getEventsSince(since),
+      getEventCount: async () => (await get()).getEventCount(),
+      getGrokBotEventCount: async () => (await get()).getGrokBotEventCount(),
+      purgeEventsBefore: async (cutoffMs: number) => (await get()).purgeEventsBefore(cutoffMs),
+      flushPersist: async () => {
+        (await get()).flushPersist();
+      },
+      close: async () => {
+        store?.close();
+        store = null;
+      },
+    };
+  },
 }));
 
 let fetchUsageDataCalls = 0;
@@ -90,6 +139,7 @@ let completeUsageEventsAfterCalls: number | null = null;
 let eventsFetchRejected = false;
 let spendFetchRejected = false;
 let usageDataRejected = false;
+let eventsConversationId: string | null = "conv-shared";
 let postStateCalls = 0;
 let postLoadingState: boolean | null = null;
 let postLoadingCalls = 0;
@@ -167,6 +217,7 @@ function installFetchMock(): void {
               kind: "USAGE_EVENT_KIND_INCLUDED_IN_BUSINESS",
               tokenUsage: { inputTokens: 10, outputTokens: 0, totalCents: 0 },
               chargedCents: 0,
+              conversationId: eventsConversationId,
             },
           ];
       return jsonResponse({ usageEventsDisplay: events });
@@ -206,7 +257,8 @@ describe("updateUsage force refresh", () => {
   const globalStorageUri = { fsPath: "" };
   const extensionContext = {
     globalState: {
-      get: () => false,
+      // Abilita l'anteprima conversazioni: i test di refresh la esercitano.
+      get: (key: string) => key === CONVERSATION_PREVIEW_KEY,
       update: async () => {},
     },
     globalStorageUri,
@@ -224,6 +276,8 @@ describe("updateUsage force refresh", () => {
     eventsFetchRejected = false;
     spendFetchRejected = false;
     usageDataRejected = false;
+    eventsConversationId = "conv-shared";
+    buildConversationTitleMapMock.mockClear();
     postStateCalls = 0;
     postLoadingState = null;
     postLoadingCalls = 0;
@@ -480,5 +534,15 @@ describe("updateUsage force refresh", () => {
           w.message.toLowerCase().includes("partial") || w.message.toLowerCase().includes("parziale"),
       ),
     ).toBeFalse();
+  });
+
+  it("fetches conversation titles only for ids missing from the cache", async () => {
+    eventsConversationId = "conv-title-cache-miss";
+    await updateUsage();
+    await updateUsage();
+    expect(buildConversationTitleMapMock).toHaveBeenCalledTimes(1);
+    expect(buildConversationTitleMapMock.mock.calls[0]?.[0]).toEqual([
+      "conv-title-cache-miss",
+    ]);
   });
 });

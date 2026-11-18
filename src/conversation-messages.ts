@@ -1,5 +1,7 @@
 import type { ConversationMessage, UsageEvent } from "./cursor-api-types";
-import { getGlobalCursorDbPath, withCursorKvStore } from "./cursor-db-reader";
+import type { CursorKvRow } from "./cursor-sqlite-pages";
+import { getGlobalCursorDbPath } from "./cursor-db-reader";
+import { kvReadBatch } from "./db-worker-client";
 
 type BubbleHeader = {
   bubbleId?: string;
@@ -137,6 +139,49 @@ function parseConversationOrder(raw: string | null): BubbleHeader[] {
   }
 }
 
+function buildMessages(
+  composerRaw: string | null,
+  bubbleRows: CursorKvRow[],
+  bubblePrefix: string,
+): ConversationMessage[] {
+  const order = parseConversationOrder(composerRaw);
+  const prefix = bubblePrefix;
+  const bubbleById = new Map<string, BubbleRecord>();
+
+  for (const row of bubbleRows) {
+    const bubbleId = row.key.slice(prefix.length);
+    try {
+      bubbleById.set(bubbleId, JSON.parse(row.value) as BubbleRecord);
+    } catch {
+      continue;
+    }
+  }
+
+  const headers: BubbleHeader[] = order.length > 0
+    ? order
+    : [...bubbleById.keys()].map((bubbleId): BubbleHeader => ({ bubbleId }));
+
+  const out: ConversationMessage[] = [];
+  for (const header of headers) {
+    const bubbleId = header.bubbleId;
+    if (!bubbleId) continue;
+    const bubble = bubbleById.get(bubbleId);
+    if (!bubble) continue;
+    const text = parseBubbleText(bubble);
+    if (!text) continue;
+    const bubbleModel = bubbleModelName(bubble);
+    out.push({
+      id: bubbleId,
+      role: bubbleRole(header.type ?? bubble.type),
+      text,
+      createdAt: header.createdAt ?? bubble.createdAt ?? null,
+      model: bubbleModel,
+      modelEstimated: false,
+    });
+  }
+  return out;
+}
+
 export async function loadConversationMessages(
   conversationId: string,
   _extensionPath: string,
@@ -144,45 +189,18 @@ export async function loadConversationMessages(
 ): Promise<ConversationMessage[]> {
   if (!conversationId) return [];
 
-  const messages = withCursorKvStore(getGlobalCursorDbPath(), (store) => {
-    const composerRaw = store.get("cursorDiskKV", `composerData:${conversationId}`);
-    const order = parseConversationOrder(composerRaw);
-    const prefix = `bubbleId:${conversationId}:`;
-    const bubbleById = new Map<string, BubbleRecord>();
+  const prefix = `bubbleId:${conversationId}:`;
+  const results = await kvReadBatch(getGlobalCursorDbPath(), [
+    { op: "get", table: "cursorDiskKV", key: `composerData:${conversationId}` },
+    { op: "getByPrefix", table: "cursorDiskKV", prefix },
+  ]);
+  if (!results) return [];
 
-    for (const row of store.getByPrefix("cursorDiskKV", prefix)) {
-      const bubbleId = row.key.slice(prefix.length);
-      try {
-        bubbleById.set(bubbleId, JSON.parse(row.value) as BubbleRecord);
-      } catch {
-        continue;
-      }
-    }
+  const messages = buildMessages(
+    (results[0] as string | null) ?? null,
+    (results[1] ?? []) as CursorKvRow[],
+    prefix,
+  );
 
-    const headers: BubbleHeader[] = order.length > 0
-      ? order
-      : [...bubbleById.keys()].map((bubbleId): BubbleHeader => ({ bubbleId }));
-
-    const out: ConversationMessage[] = [];
-    for (const header of headers) {
-      const bubbleId = header.bubbleId;
-      if (!bubbleId) continue;
-      const bubble = bubbleById.get(bubbleId);
-      if (!bubble) continue;
-      const text = parseBubbleText(bubble);
-      if (!text) continue;
-      const bubbleModel = bubbleModelName(bubble);
-      out.push({
-        id: bubbleId,
-        role: bubbleRole(header.type ?? bubble.type),
-        text,
-        createdAt: header.createdAt ?? bubble.createdAt ?? null,
-        model: bubbleModel,
-        modelEstimated: false,
-      });
-    }
-    return out;
-  });
-
-  return attachMessageModels(messages ?? [], usageEvents);
+  return attachMessageModels(messages, usageEvents);
 }

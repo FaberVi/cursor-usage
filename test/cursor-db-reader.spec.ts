@@ -2,7 +2,7 @@
 /// <reference path="../types/bun-test.d.ts" />
 import { describe, expect, it } from "bun:test";
 import { Database } from "bun:sqlite";
-import { existsSync, mkdtempSync } from "fs";
+import { existsSync, mkdtempSync, statSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { readCursorAuthValuesFromDb, withCursorKvStore } from "../src/cursor-api";
@@ -105,5 +105,29 @@ describe("Cursor KV database reader", () => {
     const raw = withCursorKvStore(dbPath, (store) => store.get("cursorDiskKV", "composerData:overflow-key"));
     expect(raw?.length).toBeGreaterThan(8000);
     expect(JSON.parse(raw ?? "{}").name.length).toBe(9000);
+  });
+
+  it("reads KV rows when the WAL spans multiple index chunks", () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), "cursor-kv-bigwal-")), "state.vscdb");
+    const db = new Database(dbPath);
+    db.run("PRAGMA journal_mode = WAL");
+    db.run("PRAGMA wal_autocheckpoint = 0");
+    db.run("CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)");
+    // Abbastanza commit singoli da superare il chunk di 256 frame dell'indice WAL.
+    for (let i = 0; i < 600; i++) {
+      db.run("INSERT INTO cursorDiskKV VALUES (?, ?)", [`bulk-${i}`, `value-${i}`]);
+    }
+    const walPath = `${dbPath}-wal`;
+    expect(existsSync(walPath)).toBeTrue();
+    // 24 byte di header frame + pagina da 4 KiB per ogni frame WAL.
+    expect(statSync(walPath).size).toBeGreaterThan(256 * (24 + 4096));
+
+    // La riga finale vive negli ultimi frame: verifica l'indicizzazione dei chunk di coda.
+    const raw = withCursorKvStore(dbPath, (store) => store.get("cursorDiskKV", "bulk-599"));
+    expect(raw).toBe("value-599");
+    const first = withCursorKvStore(dbPath, (store) => store.get("cursorDiskKV", "bulk-0"));
+    expect(first).toBe("value-0");
+
+    db.close();
   });
 });

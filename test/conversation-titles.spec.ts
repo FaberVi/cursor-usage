@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { attachMessageModels, loadConversationMessages, nearestUsageEventModel, parseBubbleText } from "../src/conversation-messages";
 import { buildConversationTitleMap, parseComposerHeaders } from "../src/conversation-titles";
+import { parseComposerDataTitle } from "../src/conversation-title-parse";
 import * as dbReader from "../src/cursor-db-reader";
 import type { UsageEvent } from "../src/cursor-api-types";
 
@@ -39,6 +40,27 @@ describe("parseComposerHeaders", () => {
     const titles = parseComposerHeaders(raw);
     expect(titles.get("abc-123")).toBe("Fix dashboard preview");
     expect(titles.get("legacy-id")).toBe("Legacy subtitle");
+  });
+});
+
+describe("parseComposerDataTitle", () => {
+  it("prefers name over subtitle and text", () => {
+    const raw = JSON.stringify({ name: "My chat", subtitle: "sub", text: "body text" });
+    expect(parseComposerDataTitle(raw)).toBe("My chat");
+  });
+
+  it("falls back to subtitle, then to text truncated at 80 chars", () => {
+    expect(parseComposerDataTitle(JSON.stringify({ subtitle: "Sub title" }))).toBe("Sub title");
+    expect(parseComposerDataTitle(JSON.stringify({ text: "short text" }))).toBe("short text");
+    const longText = "x".repeat(100);
+    expect(parseComposerDataTitle(JSON.stringify({ text: longText }))).toBe(`${"x".repeat(77)}…`);
+  });
+
+  it("returns null for invalid, empty or blank payloads", () => {
+    expect(parseComposerDataTitle(null)).toBeNull();
+    expect(parseComposerDataTitle("not json")).toBeNull();
+    expect(parseComposerDataTitle(JSON.stringify({}))).toBeNull();
+    expect(parseComposerDataTitle(JSON.stringify({ name: "   ", subtitle: "  " }))).toBeNull();
   });
 });
 

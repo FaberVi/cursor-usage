@@ -13,6 +13,9 @@ export class UsageEventStore {
   private initPromise: Promise<void> | null = null;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
   private persistDirty = false;
+  // Incrementa solo quando il contenuto degli eventi cambia davvero: il worker
+  // lo usa per dire al client se la snapshot va rispedita o può essere riusata.
+  private revision = 0;
 
   constructor(
     private readonly storageDir: string,
@@ -69,6 +72,7 @@ export class UsageEventStore {
       )
     `);
     this.migrateStoredEventsIfNeeded();
+    this.revision = this.readRevisionMeta();
     this.persist();
   }
 
@@ -91,6 +95,23 @@ export class UsageEventStore {
       "INSERT OR REPLACE INTO store_meta (key, value) VALUES (?, ?)",
       [key, value],
     );
+  }
+
+  private readRevisionMeta(): number {
+    const raw = this.getMeta("event_store_revision");
+    if (raw === null) return 0;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  private bumpRevision(): void {
+    this.revision += 1;
+    this.setMeta("event_store_revision", String(this.revision));
+  }
+
+  /** Version del contenuto: cambia solo quando le righe eventi cambiano davvero. */
+  getStoreRevision(): number {
+    return this.revision;
   }
 
   /** Dedupe rows and rewrite payloads after request/token normalization / fingerprint change. */
@@ -159,11 +180,16 @@ export class UsageEventStore {
     }
 
     this.setMeta("event_store_schema", "3");
+    // La migrazione riscrive tutto l'archivio: forziamo un bump così il
+    // prossimo snapshot RPC non riusa una cache pre-migrazione.
+    this.setMeta("event_store_revision", String(this.readRevisionMeta() + 1));
   }
 
   upsertEvents(events: UsageEvent[]): number {
     if (!this.db || events.length === 0) return 0;
-    return this.insertEvents(events, "INSERT OR REPLACE");
+    const { inserted, contentChanged } = this.insertEvents(events, "INSERT OR REPLACE");
+    if (contentChanged) this.bumpRevision();
+    return inserted;
   }
 
   /** Replace all stored events in [sinceMs, ∞) with the API snapshot (manual refresh). */
@@ -178,14 +204,45 @@ export class UsageEventStore {
     const inWindow = this.countEventsSince(sinceMs);
     if (events.length < inWindow && !totalCovered) {
       if (events.length === 0) return 0;
-      return this.insertEvents(events, "INSERT OR REPLACE");
+      const { inserted, contentChanged } = this.insertEvents(events, "INSERT OR REPLACE");
+      if (contentChanged) this.bumpRevision();
+      return inserted;
     }
+    // I payload esistenti nella finestra servono a distinguere un reinserimento
+    // identico (niente bump) da una sincronizzazione che cambia davvero i dati.
+    const priorPayloads = this.payloadsSince(sinceMs);
     this.db.run("DELETE FROM usage_events WHERE timestamp >= ?", [sinceMs]);
+    const deletedCount = this.db.getRowsModified();
     if (events.length === 0) {
+      if (deletedCount > 0) this.bumpRevision();
       this.schedulePersist();
       return 0;
     }
-    return this.insertEvents(events, "INSERT OR REPLACE");
+    const { inserted, contentChanged } = this.insertEvents(
+      events,
+      "INSERT OR REPLACE",
+      priorPayloads,
+    );
+    if (contentChanged) this.bumpRevision();
+    return inserted;
+  }
+
+  /** fingerprint → payload_json delle righe nella finestra, per il delta check del sync. */
+  private payloadsSince(sinceMs: number): Map<string, string> {
+    const map = new Map<string, string>();
+    if (!this.db) return map;
+    const stmt = this.db.prepare(
+      "SELECT event_key, payload_json FROM usage_events WHERE timestamp >= ?",
+    );
+    stmt.bind([sinceMs]);
+    while (stmt.step()) {
+      const row = stmt.getAsObject() as { event_key?: string; payload_json?: string };
+      if (typeof row.event_key === "string" && typeof row.payload_json === "string") {
+        map.set(row.event_key, row.payload_json);
+      }
+    }
+    stmt.free();
+    return map;
   }
 
   private countEventsSince(sinceMs: number): number {
@@ -204,8 +261,9 @@ export class UsageEventStore {
   private insertEvents(
     events: UsageEvent[],
     insertMode: "INSERT" | "INSERT OR IGNORE" | "INSERT OR REPLACE",
-  ): number {
-    if (!this.db || events.length === 0) return 0;
+    priorPayloads?: Map<string, string>,
+  ): { inserted: number; contentChanged: boolean } {
+    if (!this.db || events.length === 0) return { inserted: 0, contentChanged: false };
 
     const stmt = this.db.prepare(`
       ${insertMode} INTO usage_events (
@@ -218,10 +276,35 @@ export class UsageEventStore {
 
     const now = Date.now();
     let inserted = 0;
+    let contentChanged = false;
+    // Con priorPayloads il delta si confronta in memoria (le righe sono appena
+    // state cancellate, una SELECT non troverebbe più nulla); anche un evento
+    // nuovo o rimosso conta come cambiamento.
+    const nextPayloads = priorPayloads ? new Map<string, string>() : null;
+    const existingPayload = priorPayloads
+      ? null
+      : this.db.prepare("SELECT payload_json FROM usage_events WHERE event_key = ?");
     for (const event of events) {
       const normalized = normalizeUsageEventRequests(event);
+      const fingerprint = usageEventFingerprint(normalized);
+      const payloadJson = JSON.stringify(normalized);
+      if (nextPayloads) {
+        nextPayloads.set(fingerprint, payloadJson);
+      }
+      let differs = true;
+      if (nextPayloads) {
+        differs = priorPayloads?.get(fingerprint) !== payloadJson;
+      } else if (existingPayload) {
+        existingPayload.bind([fingerprint]);
+        if (existingPayload.step()) {
+          const row = existingPayload.getAsObject() as { payload_json?: string };
+          differs = row.payload_json !== payloadJson;
+        }
+        existingPayload.reset();
+      }
+      if (differs) contentChanged = true;
       stmt.bind([
-        usageEventFingerprint(normalized),
+        fingerprint,
         normalized.timestamp,
         normalized.conversationId ?? null,
         normalized.model,
@@ -239,16 +322,22 @@ export class UsageEventStore {
         normalized.isTokenBasedCall ? 1 : 0,
         normalized.isHeadless ? 1 : 0,
         normalized.isChargeable ? 1 : 0,
-        JSON.stringify(normalized),
+        payloadJson,
         now,
       ]);
       stmt.step();
       if (this.db.getRowsModified() > 0) inserted += 1;
       stmt.reset();
     }
+    existingPayload?.free();
     stmt.free();
+    // I set devono coincidere per intero: una riga cancellata e non reinserita
+    // (o una nuova) è un cambiamento anche se nessun payload è diverso.
+    if (priorPayloads && nextPayloads && priorPayloads.size !== nextPayloads.size) {
+      contentChanged = true;
+    }
     this.schedulePersist();
-    return inserted;
+    return { inserted, contentChanged };
   }
 
   getEventsSince(since: number): UsageEvent[] {
@@ -303,6 +392,10 @@ export class UsageEventStore {
     if (!this.db) return 0;
     this.db.run("DELETE FROM usage_events WHERE timestamp < ?", [cutoffMs]);
     const removed = this.db.getRowsModified();
+    // VACUUM rebuilds the whole database synchronously: skip it when the
+    // purge deleted nothing, which is the common case on every refresh.
+    if (removed === 0) return 0;
+    this.bumpRevision();
     this.db.run("VACUUM");
     this.flushPersist();
     return removed;
